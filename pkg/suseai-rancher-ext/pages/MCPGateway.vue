@@ -19,6 +19,7 @@
         :discovery-error="discoveryError || undefined"
         :scanning="scanning"
         :scan-progress="scanProgress"
+        :announced-mcps="announcedMcps"
         @scan-modal-open="openScanModal"
         @security-modal-open="openSecurityModal"
         @rule-modal-open="openRuleModal"
@@ -184,6 +185,37 @@ export default defineComponent({
     // Track if scan was running to detect completion
     const scanWasRunning = ref(false);
 
+    // Mock Announced MCPs
+    const announcedMcps = ref([
+      {
+        id: '1',
+        name: 'Weather MCP',
+        ip: '192.168.1.105',
+        port: 8080,
+        availability: 'Available',
+        toolsCount: 5,
+        lastSeen: new Date().toISOString()
+      },
+      {
+        id: '2',
+        name: 'Stock Market MCP',
+        ip: '192.168.1.106',
+        port: 3000,
+        availability: 'Busy',
+        toolsCount: 12,
+        lastSeen: new Date(Date.now() - 3600000).toISOString()
+      },
+      {
+        id: '3',
+        name: 'File System MCP',
+        ip: '192.168.1.107',
+        port: 9090,
+        availability: 'Offline',
+        toolsCount: 3,
+        lastSeen: new Date(Date.now() - 86400000).toISOString()
+      }
+    ]);
+
     // Track scan state for modal management
     watch(scanning, (newScanning, oldScanning) => {
       if (newScanning && !oldScanning) {
@@ -259,6 +291,11 @@ export default defineComponent({
       }
     }
 
+    const handleRegisterAnnounced = (mcp: any) => {
+      console.log('Registering announced MCP:', mcp);
+      // Logic to register the announced MCP will go here
+    };
+
     const onScanStarted = () => {
       console.log('Scan started');
       // Additional logic for when scan starts can be added here
@@ -270,6 +307,9 @@ export default defineComponent({
       // Store getters
       proxyInstalled,
       isEnabled,
+      
+      // Mock data
+      announcedMcps,
 
       // Discovery data
       discoveredServers,
@@ -295,6 +335,7 @@ export default defineComponent({
        openRuleModal,
         handleSyncAdapter,
         handleServerRegistered,
+        handleRegisterAnnounced,
         onScanStarted,
        loadDiscoveredServers,
        startPolling,

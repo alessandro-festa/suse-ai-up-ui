@@ -69,9 +69,18 @@
             <div class="step-content">
               <p class="step-description">{{ step.description }}</p>
               <div v-if="step.details" class="step-details">{{ step.details }}</div>
-              <div v-if="step.endpoint" class="step-endpoint">
+              
+              <div v-if="step.links && step.links.length > 0" class="step-links">
+                <div v-for="(link, lIndex) in step.links" :key="lIndex" class="link-item">
+                  <a :href="link.url" target="_blank" rel="noopener noreferrer" class="step-link">
+                    {{ link.label }} <i class="icon icon-external-link"></i>
+                  </a>
+                </div>
+              </div>
+              <div v-else-if="step.endpoint" class="step-endpoint">
                 <strong>Endpoint:</strong> {{ step.endpoint }}
               </div>
+
               <div v-if="step.status === 'completed'" class="step-status">
                 <span class="status-badge success">✓ Activated</span>
               </div>
@@ -105,6 +114,7 @@ interface ActivationStep {
   description: string
   details?: string
   endpoint?: string
+  links?: { url: string; label: string }[]
   status: 'pending' | 'processing' | 'completed' | 'error'
 }
 
@@ -194,9 +204,15 @@ export default defineComponent({
               break
             case 'enable-gateway':
               step.endpoint = `${cleanBaseUrl}/gateway`
+              step.links = [
+                { url: `${cleanBaseUrl}/api/v1/adapters`, label: 'Adapters API' }
+              ]
               break
             case 'enable-registry':
               step.endpoint = `${cleanBaseUrl}/registry`
+              step.links = [
+                { url: `${cleanBaseUrl}/api/v1/registry/browse`, label: 'Registry Browse' }
+              ]
               break
             case 'enable-agents':
               step.endpoint = `${cleanBaseUrl}/agents`
@@ -206,6 +222,9 @@ export default defineComponent({
               break
             case 'health-check':
               step.endpoint = `${cleanBaseUrl}/health`
+              step.links = [
+                { url: `${cleanBaseUrl}/health`, label: 'Health Check' }
+              ]
               break
           }
         }
@@ -547,6 +566,36 @@ export default defineComponent({
   border-radius: 4px;
   border: 1px solid #e8f5e8;
   word-break: break-all;
+}
+
+.step-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.step-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #007bff;
+  text-decoration: none;
+  background: #f0f7ff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cce5ff;
+  transition: all 0.2s ease;
+}
+
+.step-link:hover {
+  background: #e6f2ff;
+  text-decoration: underline;
+}
+
+.step-link .icon {
+  font-size: 10px;
 }
 
 .step-status {

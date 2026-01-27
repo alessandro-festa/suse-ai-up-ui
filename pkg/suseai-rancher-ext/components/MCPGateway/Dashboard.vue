@@ -96,6 +96,16 @@
          @register-server="handleRegisterServer"
        />
      </div>
+
+    <!-- Announced MCPs Table -->
+    <div class="table-section">
+      <h2>Announced MCPs</h2>
+      <AnnouncedMCPsTable
+        :items="announcedMcps"
+        :loading="false"
+        @register="handleRegisterAnnounced"
+      />
+    </div>
   </div>
 </template>
 
@@ -105,6 +115,7 @@ import ScanActions from './ScanActions.vue';
 import MetricsGrid from './MetricsGrid.vue';
 import AdaptersTable from './AdaptersTable.vue';
 import DiscoveredServersTable from './DiscoveredServersTable.vue';
+import AnnouncedMCPsTable from './AnnouncedMCPsTable.vue';
 
 import { useHealthMonitoring } from '../../composables/useHealthMonitoring';
 import { useAdapters } from '../../composables/useAdapters';
@@ -116,9 +127,10 @@ export default defineComponent({
     ScanActions,
     MetricsGrid,
     AdaptersTable,
-    DiscoveredServersTable
+    DiscoveredServersTable,
+    AnnouncedMCPsTable
   },
-   emits: ['scan-modal-open', 'security-modal-open', 'rule-modal-open', 'sync-adapter', 'view-server-details', 'server-registered', 'retry-discovery'],
+   emits: ['scan-modal-open', 'security-modal-open', 'rule-modal-open', 'sync-adapter', 'view-server-details', 'server-registered', 'retry-discovery', 'register-announced'],
   props: {
     adapters: {
       type: Array as () => any[],
@@ -152,6 +164,10 @@ export default defineComponent({
     scanProgress: {
       type: Number,
       default: 0
+    },
+    announcedMcps: {
+      type: Array,
+      default: () => []
     }
   },
   setup(props, { emit }) {
@@ -273,7 +289,9 @@ export default defineComponent({
       }
     };
 
-
+    const handleRegisterAnnounced = (mcp: any) => {
+      emit('register-announced', mcp);
+    };
 
     return {
       discoveredServers: servers,
@@ -296,7 +314,8 @@ export default defineComponent({
       adapterToDelete,
       deleteLoading,
       handleViewServerDetails,
-      handleRegisterServer
+      handleRegisterServer,
+      handleRegisterAnnounced
     };
   }
 });

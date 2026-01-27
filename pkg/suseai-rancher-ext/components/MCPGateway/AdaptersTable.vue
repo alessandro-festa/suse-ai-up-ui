@@ -18,7 +18,7 @@
               <td colspan="6" class="error-row">{{ error }}</td>
             </tr>
             <tr v-else-if="adapters.length === 0">
-              <td colspan="6" class="empty-row">No adapters registered</td>
+              <td colspan="6" class="empty-row">{{ emptyMessage }}</td>
             </tr>
              <tr v-else v-for="adapter in adapters" :key="adapter.id">
                <td>{{ adapter.name }}</td>
@@ -78,6 +78,10 @@ export default defineComponent({
     pingResults: {
       type: Object as () => Record<string, boolean>,
       default: () => ({})
+    },
+    emptyMessage: {
+      type: String,
+      default: 'No adapters registered'
     }
   },
   emits: ['view-details', 'delete-adapter'],
