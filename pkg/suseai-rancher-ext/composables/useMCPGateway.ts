@@ -268,26 +268,6 @@ export function useMCPGateway() {
 
     checkingService.value = true;
     try {
-      // Try localhost first (common case for local development/testing)
-      try {
-        const localhostResponse = await fetch('http://localhost:8911/health', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(3000)
-        });
-        if (localhostResponse.ok) {
-          serviceFound.value = true;
-          serviceUrl.value = 'http://localhost:8911';
-          updateApiBaseUrl('http://localhost:8911');
-          stopServiceChecking();
-          logger.info('Existing SUSE AI Universal Proxy service found at localhost:8911');
-          checkingService.value = false;
-          return;
-        }
-      } catch (localhostError) {
-        logger.info('Localhost check failed, trying configured URLs');
-      }
-
       // Try configured service URLs from API_BASE_URLS
       try {
         const currentUrl = new URL(API_BASE_URLS.MCP_GATEWAY);

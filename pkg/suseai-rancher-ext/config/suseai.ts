@@ -122,15 +122,15 @@ export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
        meta: { product: PRODUCT }
      }
    },
-   {
-     name: PAGE_TYPES.SETTINGS,
-     label: 'Global Settings',
-     route: {
-       name: `c-cluster-${PRODUCT}-settings`,
-       params: { product: PRODUCT, cluster: BLANK_CLUSTER },
-       meta: { product: PRODUCT }
-     }
-   }
+    {
+      name: PAGE_TYPES.SETTINGS,
+      label: 'Global Settings',
+      route: {
+        name: `c-cluster-${PRODUCT}-settings`,
+        params: { product: PRODUCT, cluster: BLANK_CLUSTER },
+        meta: { product: PRODUCT }
+      }
+    }
  ];
 
 

@@ -13,19 +13,59 @@ export const getApiBaseUrls = (serviceUrl?: string, useHttps: boolean = false) =
   const proxyPort = useHttps ? 38911 : 8911;
 
   if (serviceUrl) {
-    // Extract IP from serviceUrl (e.g., http://192.168.1.100:8911 -> 192.168.1.100)
-    const url = new URL(serviceUrl);
-    const ip = url.hostname;
-    return {
-      MCP_GATEWAY: `${protocol}://${ip}:${mcpPort}`,
-      DISCOVERY: `${protocol}://${ip}:${discoveryPort}`,
-      PROXY: `${protocol}://${ip}:${proxyPort}`,
-      REGISTRY: `http://${ip}:8911`,
-      PLUGINS: `http://${ip}:8914`,
-      VIRTUAL_MCP: `http://${ip}:8911/api/v1`,
-      SMART_AGENTS: `http://${ip}:8910`,
-      RANCHER: window.location.origin
-    };
+    // Handle relative Rancher Proxy URLs (starting with /)
+    if (serviceUrl.startsWith('/')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      // Ensure we don't double slash if origin ends with / (rare but possible)
+      const baseUrl = `${origin.replace(/\/$/, '')}${serviceUrl}`;
+      
+      return {
+        MCP_GATEWAY: baseUrl,
+        DISCOVERY: baseUrl,
+        PROXY: baseUrl,
+        REGISTRY: baseUrl,
+        // All services except SmartAgents are now on port 8911
+        PLUGINS: baseUrl, 
+        VIRTUAL_MCP: `${baseUrl}/api/v1`,
+        // SmartAgents runs on port 8910, try to guess its proxy URL
+        SMART_AGENTS: baseUrl.includes('8911') ? baseUrl.replace('8911', '8910') : baseUrl,
+        RANCHER: origin
+      };
+    }
+
+    try {
+      const url = new URL(serviceUrl);
+      
+      // Check if this is a Rancher Proxy URL (absolute URL containing /k8s/clusters)
+      if (url.pathname.includes('/k8s/clusters')) {
+        const baseUrl = serviceUrl.replace(/\/$/, '');
+        return {
+          MCP_GATEWAY: baseUrl,
+          DISCOVERY: baseUrl,
+          PROXY: baseUrl,
+          REGISTRY: baseUrl,
+          PLUGINS: baseUrl,
+          VIRTUAL_MCP: `${baseUrl}/api/v1`,
+          SMART_AGENTS: baseUrl.includes('8911') ? baseUrl.replace('8911', '8910') : baseUrl,
+          RANCHER: window.location.origin
+        };
+      }
+
+      // Extract IP from serviceUrl (e.g., http://192.168.1.100:8911 -> 192.168.1.100)
+      const ip = url.hostname;
+      return {
+        MCP_GATEWAY: `${protocol}://${ip}:${mcpPort}`,
+        DISCOVERY: `${protocol}://${ip}:${discoveryPort}`,
+        PROXY: `${protocol}://${ip}:${proxyPort}`,
+        REGISTRY: `http://${ip}:${mcpPort}`,
+        PLUGINS: `http://${ip}:${mcpPort}`,
+        VIRTUAL_MCP: `http://${ip}:${mcpPort}/api/v1`,
+        SMART_AGENTS: `http://${ip}:8910`,
+        RANCHER: window.location.origin
+      };
+    } catch (e) {
+      console.warn('Failed to parse serviceUrl, falling back to default:', e);
+    }
   }
 
   // Use current hostname as default instead of hardcoded IP
@@ -34,9 +74,9 @@ export const getApiBaseUrls = (serviceUrl?: string, useHttps: boolean = false) =
     MCP_GATEWAY: `${protocol}://${currentHost}:${mcpPort}`,
     DISCOVERY: `${protocol}://${currentHost}:${discoveryPort}`,
     PROXY: `${protocol}://${currentHost}:${proxyPort}`,
-    REGISTRY: `http://${currentHost}:8911`,
-    PLUGINS: `http://${currentHost}:8914`,
-    VIRTUAL_MCP: `http://${currentHost}:8911/api/v1`,
+    REGISTRY: `http://${currentHost}:${mcpPort}`,
+    PLUGINS: `http://${currentHost}:${mcpPort}`,
+    VIRTUAL_MCP: `http://${currentHost}:${mcpPort}/api/v1`,
     SMART_AGENTS: `http://${currentHost}:8910`,
     RANCHER: window.location.origin
   };

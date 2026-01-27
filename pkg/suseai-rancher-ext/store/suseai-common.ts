@@ -5,6 +5,7 @@ import { SUSEAIProxyConfig } from '../config/suseai';
 interface SUSEAIState {
   settings: {
     proxyInstalled: boolean;
+    wizardCompleted: boolean;
     selectedServices: string[];
     availableClusters: any[];
     serviceUrls: string[];
@@ -21,9 +22,10 @@ export default {
   namespaced: true,
 
   state(): SUSEAIState {
-    // Load persisted settings
+    // Load persisted settings (but ignore proxyInstalled - always start as false)
     const persistedSettings = persistLoad(SETTINGS_KEY, {
       proxyInstalled: false,
+      wizardCompleted: false,
       selectedServices: [],
       availableClusters: [],
       serviceUrls: [],
@@ -36,7 +38,12 @@ export default {
 
     return {
       settings: {
-        ...persistedSettings,
+        // Always start with proxyInstalled: false (in-memory only)
+        proxyInstalled: false,
+        wizardCompleted: persistedSettings.wizardCompleted || false,
+        selectedServices: persistedSettings.selectedServices || [],
+        availableClusters: persistedSettings.availableClusters || [],
+        serviceUrls: persistedSettings.serviceUrls || [],
         selectedCluster: persistedSettings.selectedCluster || '',
         selectedPod: persistedSettings.selectedPod || null
       },
@@ -47,6 +54,12 @@ export default {
   mutations: {
     SET_PROXY_INSTALLED(state: SUSEAIState, value: boolean) {
       state.settings.proxyInstalled = value;
+      // Don't persist proxyInstalled - keep it in memory only
+      // persistSave(SETTINGS_KEY, state.settings);
+    },
+
+    SET_WIZARD_COMPLETED(state: SUSEAIState, value: boolean) {
+      state.settings.wizardCompleted = value;
       persistSave(SETTINGS_KEY, state.settings);
     },
 
@@ -88,6 +101,10 @@ export default {
       commit('SET_PROXY_INSTALLED', value);
     },
 
+    setWizardCompleted({ commit }: any, value: boolean) {
+      commit('SET_WIZARD_COMPLETED', value);
+    },
+
     setSelectedServices({ commit }: any, services: string[]) {
       commit('SET_SELECTED_SERVICES', services);
     },
@@ -117,6 +134,7 @@ export default {
 
   getters: {
     proxyInstalled: (state: SUSEAIState) => state.settings.proxyInstalled,
+    wizardCompleted: (state: SUSEAIState) => state.settings.wizardCompleted,
     selectedServices: (state: SUSEAIState) => state.settings.selectedServices,
     availableClusters: (state: SUSEAIState) => state.settings.availableClusters,
     serviceUrls: (state: SUSEAIState) => state.settings.serviceUrls,

@@ -223,5 +223,6 @@ export class RegistryAPI extends BaseAPI {
 export const registryAPI = new RegistryAPI({
   baseURL: API_BASE_URLS.REGISTRY,
   timeout: 30000,
-  retries: 3
+  retries: 3,
+  dynamicBaseURL: () => API_BASE_URLS.REGISTRY
 })

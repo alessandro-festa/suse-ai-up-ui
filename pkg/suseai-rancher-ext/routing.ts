@@ -54,13 +54,13 @@ export default [
     meta:      { product: PRODUCT, category: 'smart-agents' }
   },
 
-   // Settings page
-  {
-    name:      `c-cluster-${PRODUCT}-settings`,
-    path:      `/c/:cluster/${PRODUCT}/settings`,
-    component: () => import('./pages/Settings.vue'),
-    meta:      { product: PRODUCT, category: 'settings' }
-  },
+    // Settings page
+   {
+     name:      `c-cluster-${PRODUCT}-settings`,
+     path:      `/c/:cluster/${PRODUCT}/settings`,
+     component: () => import('./pages/Settings.vue'),
+     meta:      { product: PRODUCT, category: 'settings' }
+   },
 
   // Test wizard route
   {

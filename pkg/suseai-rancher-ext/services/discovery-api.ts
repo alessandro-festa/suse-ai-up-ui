@@ -260,7 +260,8 @@ export class DiscoveryAPI extends BaseAPI {
 export const discoveryAPI = new DiscoveryAPI({
   baseURL: API_BASE_URLS.MCP_GATEWAY,
   timeout: 30000,
-  retries: 3
+  retries: 3,
+  dynamicBaseURL: () => API_BASE_URLS.DISCOVERY
 })
 
 // Method to update baseURL dynamically

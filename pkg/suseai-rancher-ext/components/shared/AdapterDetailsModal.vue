@@ -240,6 +240,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useStore } from 'vuex';
 import type { AdapterResource } from '../../types/mcp-types';
 import { API_BASE_URLS } from '../../config/api-config';
 
@@ -254,6 +255,7 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+const store = useStore();
 const adapter = ref<AdapterResource | null>(null);
 const showToken = ref(false);
 const copying = ref(false);
@@ -267,11 +269,31 @@ watch(() => props.adapterData, (newAdapter) => {
   adapter.value = newAdapter;
 }, { immediate: true });
 
-// Generate MCP URL from reactive API_BASE_URLS
+// Get public IP from store
+const publicIp = computed(() => {
+  const availableClusters = store.getters['suseai/availableClusters'];
+  if (availableClusters && availableClusters.length > 0) {
+    // Return the primaryIP of the first cluster/service
+    return availableClusters[0].primaryIP;
+  }
+  return null;
+});
+
+// Generate MCP URL
 const mcpUrl = computed(() => {
   if (!adapter.value?.name) return '';
-  const url = `${API_BASE_URLS.MCP_GATEWAY}/api/v1/adapters/${adapter.value.name}/mcp`;
-  console.log('AdapterDetailsModal mcpUrl:', url, 'API_BASE_URLS:', API_BASE_URLS.MCP_GATEWAY);
+  
+  let baseUrl = API_BASE_URLS.MCP_GATEWAY;
+  
+  // Prefer public IP if available for external clients
+  if (publicIp.value) {
+    // Assuming HTTP for direct IP access to avoid cert errors, unless HTTPS is enforced globally
+    // We use port 8911 as standardized
+    baseUrl = `http://${publicIp.value}:8911`;
+  }
+  
+  const url = `${baseUrl}/api/v1/adapters/${adapter.value.name}/mcp`;
+  console.log('AdapterDetailsModal mcpUrl:', url, 'PublicIP:', publicIp.value, 'ProxyURL:', API_BASE_URLS.MCP_GATEWAY);
   return url;
 });
 
@@ -430,7 +452,7 @@ const getClientConfig = (clientType: string): string => {
           mcpServers: {
             [adapterName]: {
               headers: mcpServer.headers,
-              httpUrl: mcpServer.url
+              httpUrl: mcpUrl.value // Use the computed public URL
             }
           }
         };
@@ -442,7 +464,7 @@ const getClientConfig = (clientType: string): string => {
             [adapterName]: {
               headers: mcpServer.headers,
               type: 'http',
-              url: mcpServer.url
+              url: mcpUrl.value // Use the computed public URL
             }
           }
         };

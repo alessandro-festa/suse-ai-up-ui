@@ -17,13 +17,13 @@
         <div v-else-if="serverData" class="server-details">
            <!-- Server Header -->
            <div class="server-header">
-             <div class="server-icon-container" v-if="serverData.about?.icon_url || serverData.icon">
-               <img :src="serverData.about?.icon_url || serverData.icon" :alt="serverData.about?.title || serverData.name" class="server-icon" />
+             <div class="server-icon-container" v-if="serverData._meta?.about?.icon || serverData.icon">
+               <img :src="serverData._meta?.about?.icon || serverData.icon" :alt="serverData._meta?.about?.title || serverData.name" class="server-icon" />
              </div>
              <div class="server-title-section">
-               <h3 class="server-title">{{ serverData.about?.title || serverData.name }}</h3>
+               <h3 class="server-title">{{ serverData._meta?.about?.title || serverData.name }}</h3>
                <div class="server-meta">
-                 <span class="version-badge">v{{ serverData.version }}</span>
+                 <span class="version-badge">{{ formatVersion(serverData._meta?.source_info?.tag || serverData._meta?.tag || serverData.version) }}</span>
                  <span v-if="serverData._meta?.hosted" class="hosted-badge">Hosted</span>
                  <span v-else class="self-hosted-badge">Self-hosted</span>
                </div>
@@ -33,7 +33,7 @@
            <!-- Description -->
            <div class="detail-section">
              <h4>Description</h4>
-             <p class="server-description">{{ serverData.about?.description || serverData.description }}</p>
+             <p class="server-description">{{ serverData._meta?.about?.description || serverData.description }}</p>
            </div>
 
            <!-- Connection Details -->
@@ -110,7 +110,8 @@
                    <div v-for="secret in serverData._meta.config.secrets" :key="secret.name" class="secret-item">
                      <div class="secret-header">
                        <code class="secret-name">{{ secret.name }}</code>
-                       <span v-if="secret.required" class="secret-required">Required</span>
+                       <span v-if="secret.mandatory === true" class="flag mandatory">Mandatory</span>
+                       <span v-else class="flag optional">Optional</span>
                      </div>
                      <p v-if="secret.description" class="secret-description">{{ secret.description }}</p>
                      <div class="secret-details">
@@ -220,6 +221,10 @@
               <div v-if="serverData._meta.transportType" class="meta-item">
                 <div class="meta-label">Transport</div>
                 <div class="meta-value">{{ serverData._meta.transportType }}</div>
+              </div>
+              <div v-if="serverData._meta.sidecarConfig?.commandType" class="meta-item">
+                <div class="meta-label">Command Type</div>
+                <div class="meta-value">{{ serverData._meta.sidecarConfig.commandType }}</div>
               </div>
               <div v-if="serverData.discovered_at" class="meta-item">
                 <div class="meta-label">Discovered</div>
@@ -366,8 +371,22 @@ export default defineComponent({
       return String(config)
     }
 
+    const formatVersion = (version: string | undefined | null) => {
+      if (!version) return 'v0.0.0'
+      // If version already starts with 'v', return it as is
+      if (String(version).toLowerCase().startsWith('v')) {
+        return String(version)
+      }
+      // Otherwise prepend 'v'
+      return `v${version}`
+    }
+
     const getSourceUrl = (server: any): string => {
-      // Check for source.project from YAML (highest priority)
+      // Check for _meta.source_info.project (highest priority)
+      if (server._meta?.source_info?.project) {
+        return server._meta.source_info.project
+      }
+      // Check for source.project from YAML
       if (server.source?.project) {
         return server.source.project
       }
@@ -425,6 +444,7 @@ export default defineComponent({
       error,
       getAllEnvironmentVariables,
       formatDate,
+      formatVersion,
       formatConfigTemplate,
       getSourceUrl
     }
@@ -875,9 +895,16 @@ export default defineComponent({
   color: white;
 }
 
-.flag.required {
+.flag.required,
+.flag.mandatory {
   background: var(--warning, #ffc107);
   color: #212529;
+}
+
+.flag.optional {
+  background: var(--accent-bg, #f0f0f0);
+  color: var(--body-text);
+  border: 1px solid var(--border);
 }
 
 .env-var-description {

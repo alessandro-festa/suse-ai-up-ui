@@ -38,42 +38,42 @@ export function useHealthMonitoring() {
   // Polling interval
   let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Helper function to check health with loadbalancer IP fallback to localhost
+  // Helper function to check health using current API configuration
   const checkHealthWithFallback = async (serviceType: string): Promise<{ healthy: boolean; hostname: string; response?: any }> => {
-    // First try the current API configuration hostname
     try {
-      const url = new URL(API_BASE_URLS.MCP_GATEWAY);
-      const configuredHost = url.hostname;
-      if (configuredHost && configuredHost !== 'localhost' && configuredHost !== '127.0.0.1') {
-        console.log(`🔍 [HealthMonitoring] Trying configured host for ${serviceType}: ${configuredHost}:8911`);
-        const response = await fetch(`http://${configuredHost}:8911/health`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(5000)
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return { healthy: true, hostname: configuredHost, response: data };
-        }
+      // Get the correct base URL for the service type
+      let baseUrl = API_BASE_URLS.MCP_GATEWAY;
+      if (serviceType === 'registry') {
+        baseUrl = API_BASE_URLS.REGISTRY;
+      } else if (serviceType === 'discovery') {
+        baseUrl = API_BASE_URLS.DISCOVERY;
       }
-    } catch (error) {
-      console.log(`⚠️ [HealthMonitoring] Configured host failed for ${serviceType}, trying localhost`);
-    }
 
-    // Fallback to localhost
-    try {
-      console.log(`🔍 [HealthMonitoring] Trying localhost for ${serviceType}: localhost:8911`);
-      const response = await fetch('http://localhost:8911/health', {
+      console.log(`🔍 [HealthMonitoring] Checking health for ${serviceType} at: ${baseUrl}/health`);
+      
+      // Ensure we don't have double slashes
+      const healthUrl = `${baseUrl.replace(/\/$/, '')}/health`;
+      
+      const response = await fetch(healthUrl, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(5000)
       });
+      
       if (response.ok) {
         const data = await response.json();
-        return { healthy: true, hostname: 'localhost', response: data };
+        // Try to extract hostname for display, fallback to "proxy" for relative URLs
+        let hostname = 'proxy';
+        try {
+          if (baseUrl.startsWith('http')) {
+            hostname = new URL(baseUrl).hostname;
+          }
+        } catch (e) { /* ignore URL parse errors */ }
+        
+        return { healthy: true, hostname, response: data };
       }
     } catch (error) {
-      console.log(`❌ [HealthMonitoring] Localhost failed for ${serviceType}`);
+      console.log(`⚠️ [HealthMonitoring] Health check failed for ${serviceType}:`, error);
     }
 
     return { healthy: false, hostname: 'unknown' };
@@ -227,11 +227,11 @@ export function useHealthMonitoring() {
     }
   };
 
-  // Initialize on mount
-  onMounted(async () => {
+  // Initialize monitoring
+  const initialize = async () => {
     await checkAllHealth();
     startPolling();
-  });
+  };
 
   // Cleanup on unmount
   onUnmounted(() => {
@@ -258,6 +258,7 @@ export function useHealthMonitoring() {
 
     // Polling controls
     startPolling,
-    stopPolling
+    stopPolling,
+    initialize
   };
 }

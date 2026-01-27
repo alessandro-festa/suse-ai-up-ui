@@ -14,52 +14,7 @@
       @finish="handleFinish"
       @cancel="handleCancel"
        >
-      <!-- Auth Check Step -->
-      <template #auth-check>
-        <div class="auth-check-step">
-          <div class="step-header">
-            <h3>Authentication Check</h3>
-            <p>Verifying your access to Rancher and cluster permissions.</p>
-          </div>
 
-          <div v-if="authCheckLoading" class="loading-section">
-            <Loading />
-            <p>Checking authentication status...</p>
-          </div>
-
-          <div v-else-if="!isAuthenticated" class="auth-failed">
-            <Banner color="error">
-              <strong>Authentication Required</strong>
-              <p>You must be logged in to Rancher to discover SUSE AI services.</p>
-            </Banner>
-          </div>
-
-          <div v-else-if="!hasAdminPrivileges" class="auth-warning">
-            <Banner color="warning">
-              <strong>Limited Access</strong>
-              <p>You have limited cluster access. Discovery may not find all available services.</p>
-            </Banner>
-          </div>
-
-           <div v-else class="auth-success">
-             <Banner color="success">
-               <strong>Authentication Verified</strong>
-               <p>You have the necessary permissions to scan clusters for SUSE AI services.</p>
-             </Banner>
-           </div>
-
-           <div v-if="clusterLoadingError" class="cluster-error">
-             <Banner color="error">
-               <strong>Cluster Access Error</strong>
-               <p>{{ clusterLoadingError }}</p>
-             </Banner>
-           </div>
-
-           <div v-if="isAuthenticated && hasAdminPrivileges && !clusterLoadingError" class="next-steps">
-             <p>Ready to scan {{ accessibleClusters.length }} accessible clusters for SUSE AI Universal Proxy services.</p>
-           </div>
-         </div>
-       </template>
 
       <!-- Cluster Selection Step -->
       <template #cluster-selection>
@@ -346,15 +301,7 @@
             </div>
           </template>
 
-      <!-- Login Step -->
-      <template #login>
-        <div class="login-step">
-          <LoginStep
-            :proxy-url="selectedServiceUrl"
-            @login-success="$emit('login-success')"
-          />
-        </div>
-      </template>
+
     </Wizard>
   </div>
 </template>
@@ -653,6 +600,7 @@ import Loading from '@shell/components/Loading';
 import LoginStep from '../LoginStep.vue';
 import { useAuth } from '../../../composables/useAuth';
 import { useClusterDiscovery } from '../../../composables/useClusterDiscovery';
+import { useServiceDiscovery } from '../../../composables/useServiceDiscovery';
 import type { ServiceInstance } from '../../../types/service-discovery';
 import { updateApiBaseUrls } from '../../../config/api-config';
 
@@ -742,48 +690,35 @@ const emit = defineEmits<Emits>();
 // Wizard configuration
 const wizardSteps = computed(() => [
   {
-    name: 'auth-check',
-    label: 'Authentication',
-    ready: true,
-    weight: 1
-  },
-  {
     name: 'cluster-selection',
     label: 'Select Clusters',
     ready: accessibleClusters.value.length > 0,
-    weight: 2
+    weight: 1
   },
   {
     name: 'health-check',
     label: 'Service Discovery',
-    ready: false,
+    ready: selectedClusters.value.length > 0,
+    weight: 2
+  },
+  {
+    name: 'service-selection',
+    label: 'Select Services',
+    ready: discoveredServices.value.length > 0,
     weight: 3
   },
   {
     name: 'review',
     label: 'Review',
-    ready: false,
+    ready: selectedServices.value.length > 0,
     weight: 4
-  },
-  {
-    name: 'service-selection',
-    label: 'Select Services',
-    ready: false,
-    weight: 5
-  },
-  {
-    name: 'login',
-    label: 'Authenticate',
-    ready: false,
-    weight: 6
   }
 ]);
 
 const wizardTitle = computed(() => 'Discover SUSE AI Services');
 const finishMode = computed(() => {
   const currentStepName = wizardSteps.value[currentStep.value]?.name;
-  return (currentStepName === 'service-selection' && selectedServices.value.length > 0) ||
-         (currentStepName === 'review' && discoveredServices.value.length > 0) ? 'finish' : 'next';
+  return currentStepName === 'review' && selectedServices.value.length > 0 ? 'finish' : 'next';
 });
 
 // Computed properties
@@ -926,151 +861,66 @@ const getClusterStatusText = (cluster: any): string => {
     discoveryError.value = '';
     discoveredServices.value = [];
 
+    // Use the proven service discovery logic from useServiceDiscovery
+    const { discoverPodObjects } = useServiceDiscovery();
+
     for (let i = 0; i < selectedClusters.value.length; i++) {
       const cluster = selectedClusters.value[i];
 
       try {
         console.log(`Discovering SUSE AI UP service in cluster: ${cluster.name} (${cluster.id})`);
 
-        // Query all services and find SUSE AI UP service with port 8911
-        const servicesResponse = await store.dispatch('rancher/request', {
-          url: `/k8s/clusters/${cluster.id}/v1/services`,
-          method: 'GET'
-        });
+        // Use the working discoverPodObjects function that tries service discovery first, then pod discovery
+        const detectedPods = await discoverPodObjects(store, cluster.id);
 
-        const services = servicesResponse.data?.items || [];
-        const suseAiUpService = services.find((service: any) => {
-          const hasPort8911 = service.spec?.ports?.some((p: any) => p.port === 8911 || p.targetPort === 8911);
-          return hasPort8911;
-        });
-
-        if (!suseAiUpService) {
-          console.log(`SUSE AI UP service not found in cluster ${cluster.name}`);
+        if (detectedPods.length === 0) {
+          console.log(`No SUSE AI UP services found in cluster ${cluster.name}`);
           continue;
         }
 
-        // Extract service information
-        const loadBalancerIP = suseAiUpService.status?.loadBalancer?.ingress?.[0]?.ip ||
-                              suseAiUpService.status?.loadBalancer?.ingress?.[0]?.hostname;
-        const clusterIP = suseAiUpService.spec?.clusterIP;
-        const externalIPs = suseAiUpService.spec?.externalIPs || [];
-        const ports = suseAiUpService.spec?.ports?.map((port: any) => `${port.port}/${port.protocol}`).join(', ') || '8911';
+        // Convert detected pods to the format expected by the wizard
+        for (const pod of detectedPods) {
+          const serviceData = {
+            clusterId: cluster.id,
+            clusterName: cluster.name,
+            serviceName: pod.metadata?.name || 'uniproxy',
+            namespace: pod.metadata?.namespace || 'suse-ai-up',
+            primaryIP: pod.primaryIP,
+            clusterIP: pod.clusterIP,
+            externalIPs: pod.externalIPs,
+            pod: pod
+          };
 
-        // For LoadBalancer services, the external IP might be in different places
-        let actualLoadBalancerIP = loadBalancerIP;
-        if (!actualLoadBalancerIP && suseAiUpService.spec?.type === 'LoadBalancer') {
-          // Check various places where external IP might be stored
-          const externalIP = suseAiUpService.status?.loadBalancer?.ingress?.[0]?.ip ||
-                            suseAiUpService.status?.loadBalancer?.ingress?.[0]?.hostname ||
-                            externalIPs[0] ||
-                            suseAiUpService.metadata?.annotations?.['external-ip'];
-
-          // For LoadBalancer services, the external IP is often in the ingress field
-          // But sometimes it's directly in the service status
-          if (!externalIP && suseAiUpService.status?.loadBalancer?.ingress?.length > 0) {
-            actualLoadBalancerIP = suseAiUpService.status.loadBalancer.ingress[0].ip ||
-                                  suseAiUpService.status.loadBalancer.ingress[0].hostname;
-          }
-
-          // Try to parse publicEndpoints annotation if it exists (Rancher specific)
-          if (!actualLoadBalancerIP && suseAiUpService.metadata?.annotations?.['field.cattle.io/publicEndpoints']) {
-            try {
-              const publicEndpoints = JSON.parse(suseAiUpService.metadata.annotations['field.cattle.io/publicEndpoints']);
-              if (Array.isArray(publicEndpoints) && publicEndpoints.length > 0) {
-                actualLoadBalancerIP = publicEndpoints[0].addresses?.[0] || publicEndpoints[0].address;
-              }
-            } catch (e) {
-              console.warn('Failed to parse publicEndpoints annotation:', e);
-            }
-          }
-
-          if (!actualLoadBalancerIP) {
-            actualLoadBalancerIP = externalIP;
-          }
+          discoveredServices.value.push(serviceData);
+          console.log(`Found SUSE AI UP service: ${serviceData.serviceName} in ${serviceData.namespace}`);
         }
 
-        console.log('🔍 [APIDiscoveryWizard] IP extraction:', {
-          loadBalancerIP,
-          externalIPs,
-          actualLoadBalancerIP,
-          serviceType: suseAiUpService.spec?.type
-        });
-
-        // Extract public IP from Rancher annotations
-        let publicIP = '';
-        const publicEndpointsAnnotation = suseAiUpService.metadata?.annotations?.['field.cattle.io/publicEndpoints'];
-        if (publicEndpointsAnnotation) {
-          try {
-            const endpoints = JSON.parse(publicEndpointsAnnotation);
-            if (Array.isArray(endpoints) && endpoints.length > 0) {
-              publicIP = endpoints[0]?.addresses?.[0] || '';
-            }
-          } catch (e) {
-            console.warn(`Failed to parse public endpoints annotation for cluster ${cluster.name}:`, e);
-          }
+      } catch (error: any) {
+        console.error(`Failed to discover services in cluster ${cluster.name}:`, error);
+        if (error.response?.status === 404) {
+          console.log(`SUSE AI UP service not found in cluster ${cluster.name} (404)`);
+        } else {
+          discoveryError.value = `Failed to discover services in cluster ${cluster.name}: ${error.message}`;
         }
+      }
 
-        // Determine primary IP for health check (prefer public IP from annotations, fallback to service IPs)
-        const primaryIP = publicIP || actualLoadBalancerIP || clusterIP || externalIPs[0];
-
-        // Perform health check with fallback to localhost
-        let healthStatus = 'unknown';
-        let actualIP = primaryIP;
-
-        // First try primaryIP if available
-        if (primaryIP) {
-          try {
-            console.log(`🔍 [APIDiscoveryWizard] Trying primary IP: ${primaryIP}:8911`);
-            const healthResponse = await fetch(`http://${primaryIP}:8911/health`, {
-              method: 'GET',
-              mode: 'cors',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              signal: AbortSignal.timeout(5000)
-            });
-            if (healthResponse.ok) {
-              healthStatus = 'healthy';
-            } else {
-              healthStatus = 'unhealthy';
-            }
-          } catch (error) {
-            console.log(`⚠️ [APIDiscoveryWizard] Primary IP ${primaryIP} failed, trying localhost`);
-            healthStatus = 'unreachable';
-          }
+      } catch (error: any) {
+        console.error(`Failed to discover services in cluster ${cluster.name}:`, error);
+        if (error.response?.status === 404) {
+          console.log(`SUSE AI UP service not found in cluster ${cluster.name} (404)`);
+        } else {
+          discoveryError.value = `Failed to discover services in cluster ${cluster.name}: ${error.message}`;
         }
+      }
+    }
 
-        // If primary IP failed or wasn't available, try localhost
-        if (healthStatus === 'unknown' || healthStatus === 'unreachable') {
-          try {
-            console.log(`🔍 [APIDiscoveryWizard] Trying localhost:8911`);
-            const localhostResponse = await fetch('http://localhost:8911/health', {
-              method: 'GET',
-              mode: 'cors',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              signal: AbortSignal.timeout(5000)
-            });
-            if (localhostResponse.ok) {
-              healthStatus = 'healthy';
-              actualIP = 'localhost';
-            } else {
-              healthStatus = 'unhealthy';
-            }
-          } catch (localhostError) {
-            console.log(`❌ [APIDiscoveryWizard] Localhost also failed`);
-            healthStatus = 'unreachable';
-          }
-        }
+    isHealthChecking.value = false;
 
-        const serviceInfo = {
-          clusterId: cluster.id,
-          clusterName: cluster.name,
-          namespace: suseAiUpService.metadata?.namespace || 'default',
-          serviceName: suseAiUpService.metadata?.name,
-          loadBalancerIP: actualLoadBalancerIP,
-          clusterIP,
+    // Update wizard step readiness
+    const healthCheckStep = wizardSteps.value.find(step => step.name === 'health-check');
+    if (healthCheckStep) {
+      healthCheckStep.ready = discoveredServices.value.length > 0;
+    }
           primaryIP,
           actualIP, // The IP that actually responded to health check
           healthStatus,
@@ -1127,49 +977,38 @@ const retryScan = async () => {
    const currentStepIndex = data?.currentStep || 0;
    const targetStepIndex = data?.targetStep || currentStepIndex + 1;
 
-    // Validate step transitions
-    if (targetStepIndex === 1) { // Moving to cluster-selection
-      if (!isAuthenticated.value) {
-        console.warn('Cannot proceed to cluster selection: not authenticated');
-        return false; // Prevent navigation
-      }
-      if (!hasAdminPrivileges.value) {
-        console.warn('Cannot proceed to cluster selection: no admin privileges');
-        return false; // Prevent navigation
-      }
-      if (accessibleClusters.value.length === 0) {
-        console.warn('Cannot proceed to cluster selection: no clusters available');
-        return false; // Prevent navigation
-      }
-    }
+     // Validate step transitions
+     if (targetStepIndex === 0) { // Already on cluster-selection, no validation needed
+       return true;
+     }
 
-    if (targetStepIndex === 2) { // Moving to service-discovery
-      if (selectedClusters.value.length === 0) {
-        console.warn('Cannot proceed to service discovery: no clusters selected');
-        return false; // Prevent navigation
-      }
-      console.log('Starting service discovery for selected clusters...');
-      await performServiceDiscovery();
-    }
+     if (targetStepIndex === 1) { // Moving to service-discovery
+       if (selectedClusters.value.length === 0) {
+         console.warn('Cannot proceed to service discovery: no clusters selected');
+         return false; // Prevent navigation
+       }
+       console.log('Starting service discovery for selected clusters...');
+       await performServiceDiscovery();
+     }
 
-    if (targetStepIndex === 3) { // Moving to review
-      if (isHealthChecking.value) {
-        console.warn('Cannot proceed to review: service discovery still in progress');
-        return false; // Prevent navigation
-      }
-      if (discoveredServices.value.length === 0) {
-        console.warn('Cannot proceed to review: no services discovered');
-        return false; // Prevent navigation
-      }
-    }
-
-     if (targetStepIndex === 4) { // Moving to service-selection
+     if (targetStepIndex === 2) { // Moving to service-selection
+       if (isHealthChecking.value) {
+         console.warn('Cannot proceed to service selection: service discovery still in progress');
+         return false; // Prevent navigation
+       }
        if (discoveredServices.value.length === 0) {
          serviceSelectionError.value = 'No services are available. Please go back and check service discovery.';
          console.warn('Cannot proceed to service selection: no services discovered');
          return false; // Prevent navigation
        }
        serviceSelectionError.value = '';
+     }
+
+     if (targetStepIndex === 3) { // Moving to review
+       if (selectedServices.value.length === 0) {
+         console.warn('Cannot proceed to review: no services selected');
+         return false; // Prevent navigation
+       }
      }
 
    return true; // Allow navigation
@@ -1299,40 +1138,61 @@ const retryScan = async () => {
        // Fresh wizard, load clusters
        // Load clusters from Rancher
        console.log('Loading clusters from Rancher...');
+       let rawClusters: any[] = [];
+
         try {
           const response = await store.dispatch('rancher/request', {
             url: '/v3/clusters',
             method: 'GET'
           });
           const clusters = response.data || [];
-          accessibleClusters.value = clusters.map((cluster: any) => {
-            // Note: IP information will be extracted from service annotations during discovery
-            // Cluster IPs are not pre-filled as they come from the SUSE AI UP service endpoints
-            return {
-              id: cluster.id,
-              name: cluster.nameDisplay || cluster.name || cluster.id,
-              state: cluster.state || 'unknown',
-              transitioning: cluster.transitioning || false,
-              provider: cluster.provider || 'unknown',
-              ready: cluster.ready || false,
-              internalIP: '', // Will be filled from service discovery
-              publicIP: '' // Will be filled from service discovery
-            };
-          });
+          rawClusters = clusters.map((cluster: any) => ({
+            id: cluster.id,
+            name: cluster.nameDisplay || cluster.name || cluster.id,
+            state: cluster.state || 'unknown',
+            transitioning: cluster.transitioning || false,
+            provider: cluster.provider || 'unknown',
+            ready: cluster.ready || false,
+            internalIP: '',
+            publicIP: ''
+          }));
         } catch (error) {
           console.error('Failed to load clusters, falling back to cluster access:', error);
           await loadClusterAccess();
-          accessibleClusters.value = clusterAccess.value.map(access => ({
+          rawClusters = clusterAccess.value.map(access => ({
             id: access.clusterId,
             name: access.name || access.clusterId,
             state: 'active', // Assume active if accessible
             transitioning: false,
             provider: 'unknown',
             ready: true,
-            internalIP: '', // Will be filled during service discovery
-            publicIP: '' // Will be filled during service discovery
+            internalIP: '',
+            publicIP: ''
           }));
        }
+
+       // Check if local cluster exists and verify service
+       const localCluster = rawClusters.find((c: any) => c.id === 'local');
+       if (localCluster) {
+         console.log('Checking if service exists on local cluster...');
+         try {
+           // Quick check for service on local cluster
+           const { discoverPodObjects } = useServiceDiscovery();
+           const localServices = await discoverPodObjects(store, 'local');
+           
+           if (localServices.length === 0) {
+             console.log('No service found on local cluster, filtering it out');
+             rawClusters = rawClusters.filter((c: any) => c.id !== 'local');
+           } else {
+             console.log('Service found on local cluster, keeping it');
+           }
+         } catch (err) {
+           console.warn('Failed to check local cluster service, filtering it out:', err);
+           rawClusters = rawClusters.filter((c: any) => c.id !== 'local');
+         }
+       }
+
+       accessibleClusters.value = rawClusters;
 
         // Check if clusters were loaded successfully
         if (accessibleClusters.value.length === 0) {
@@ -1361,27 +1221,30 @@ const retryScan = async () => {
        );
      }
 
-     authCheckLoading.value = false;
+      authCheckLoading.value = false;
 
-     // Clusters are loaded, wizard will handle the rest
-   } catch (err: any) {
-     console.error('Failed to initialize discovery wizard:', err);
-     // Fall back to mock clusters on error
-     accessibleClusters.value = [
-       {
-         id: 'local',
-         name: 'local',
-         state: 'active',
-         transitioning: false,
-         provider: 'k3s',
-         ready: true
-       }
-     ];
-     selectedClusters.value = [...accessibleClusters.value];
-   } finally {
-     loading.value = false;
-     authCheckLoading.value = false;
-   }
- });
+      // Clusters are loaded, wizard will handle the rest
+    } catch (err: any) {
+      console.error('Failed to initialize discovery wizard:', err);
+      // Do not fall back to mock clusters on error, just show empty or error state
+      accessibleClusters.value = [];
+      clusterLoadingError.value = 'Failed to load clusters. Please check your connection and permissions.';
+    } finally {
+      loading.value = false;
+      authCheckLoading.value = false;
+    }
+  });
+
+  // Reset wizard method for external use
+  const resetWizard = () => {
+    if (wizard.value) {
+      wizard.value.goToStep(0);
+    }
+  };
+
+  // Expose methods for parent components
+  defineExpose({
+    resetWizard
+  });
 </script>
 

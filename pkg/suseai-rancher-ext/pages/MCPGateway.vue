@@ -111,6 +111,12 @@ export default defineComponent({
       syncAdapter
     } = useAdapters();
 
+    // Initialize API URLs immediately in setup to ensure child components have correct config
+    const serviceUrls = store.state.suseai?.settings?.serviceUrls || []
+    const serviceUrl = serviceUrls.length > 0 ? serviceUrls[0] : undefined
+    console.log('MCPGateway setup: Initializing API URLs with:', serviceUrl)
+    updateApiBaseUrls(serviceUrl)
+
     // Service enablement check
     const proxyInstalled = computed(() => store.state.suseai.settings.proxyInstalled);
     const selectedServices = computed(() => store.state.suseai.settings.selectedServices);
@@ -148,15 +154,6 @@ export default defineComponent({
 
     // Load data on mount
     onMounted(async () => {
-      // Initialize API URLs with service URL from store
-      const serviceUrls = store.state.suseai?.settings?.serviceUrls || []
-      const serviceUrl = serviceUrls.length > 0 ? serviceUrls[0] : undefined
-      console.log('MCPGateway serviceUrls from store:', serviceUrls)
-      console.log('MCPGateway serviceUrl to use:', serviceUrl)
-
-      // Set initial API URLs
-      updateApiBaseUrls(serviceUrl)
-
       console.log('MCPGateway onMounted: Starting initialization')
 
       // Load discovered servers

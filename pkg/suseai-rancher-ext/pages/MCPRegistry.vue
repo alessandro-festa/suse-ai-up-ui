@@ -354,7 +354,7 @@ export default defineComponent({
       }
     }
 
-    // Test service connectivity and fallback to localhost if needed
+    // Test service connectivity
     const testAndFallbackServiceUrl = async () => {
       try {
         console.log('MCPRegistry testing current service URL:', API_BASE_URLS.REGISTRY)
@@ -364,44 +364,14 @@ export default defineComponent({
         try {
           const response = await fetch(currentUrl, {
             method: 'GET',
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(2000)
           })
           if (response.ok) {
             console.log('MCPRegistry current service URL is accessible:', currentUrl)
-            return // Current URL works, no need to fallback
+            return // Current URL works
           }
         } catch (error) {
-          console.log('MCPRegistry current service URL failed, trying localhost:', error)
-        }
-
-        // Try localhost fallback
-        const localhostUrl = 'http://localhost:8911/health'
-        console.log('MCPRegistry trying localhost fallback:', localhostUrl)
-        try {
-          const response = await fetch(localhostUrl, {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000)
-          })
-          if (response.ok) {
-            console.log('MCPRegistry localhost fallback successful, updating API URLs')
-            // Update API_BASE_URLS to use localhost
-            updateApiBaseUrls('http://localhost:8911')
-            // Update stored service URLs in store
-            await store.dispatch('suseai/setServiceUrls', ['http://localhost:8911'])
-            // Update API instances
-            import('../services/adapter-api').then(({ adapterAPI }) => {
-              adapterAPI.updateBaseURL()
-              console.log('MCPRegistry adapterAPI baseURL updated to:', adapterAPI.getBaseURL())
-            })
-            import('../services/registry-api').then(({ registryAPI }) => {
-              registryAPI.updateBaseURL()
-              console.log('MCPRegistry registryAPI baseURL updated to:', registryAPI.getBaseURL())
-            })
-            console.log('MCPRegistry API_BASE_URLS updated to localhost:', API_BASE_URLS)
-            return
-          }
-        } catch (localhostError) {
-          console.log('MCPRegistry localhost fallback also failed:', localhostError)
+          console.log('MCPRegistry current service URL failed:', error)
         }
 
         console.warn('MCPRegistry no accessible service URL found - keeping current configuration')
@@ -419,10 +389,10 @@ export default defineComponent({
         console.log('MCPRegistry initializing with stored service URL:', serviceUrl)
         updateApiBaseUrls(serviceUrl)
         // Update API instances with new base URLs
-        import('../services/adapter-api').then(({ adapterAPI }) => {
-          adapterAPI.updateBaseURL()
-          console.log('MCPRegistry adapterAPI baseURL updated to:', adapterAPI.getBaseURL())
-        })
+        const { adapterAPI } = await import('../services/adapter-api')
+        adapterAPI.updateBaseURL()
+        console.log('MCPRegistry adapterAPI baseURL updated to:', adapterAPI.getBaseURL())
+        
         // registryAPI.updateBaseURL() // Not needed for registryService
       }
 
@@ -551,6 +521,10 @@ export default defineComponent({
     }
 
     const handleReloadRegistry = async () => {
+      // If we're in an error state, try to re-establish connection first
+      if (error.value) {
+        await testAndFallbackServiceUrl()
+      }
       await reloadRegistry()
     }
 

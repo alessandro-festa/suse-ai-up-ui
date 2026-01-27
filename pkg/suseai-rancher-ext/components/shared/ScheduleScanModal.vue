@@ -137,12 +137,12 @@
 
         <div class="modal-footer">
           <button v-if="!scanInProgress" class="btn btn-secondary" @click="closeModal">Cancel</button>
-          <button v-if="scanInProgress" class="btn btn-secondary" disabled>
+          <button v-if="scanInProgress && (props.scanProgress || 0) < 100" class="btn btn-secondary" disabled>
             <i class="icon icon-spinner icon-spin"></i>
             Scanning...
           </button>
           <button
-            v-if="(props.scanProgress || 0) >= 100"
+            v-if="scanInProgress && (props.scanProgress || 0) >= 100"
             class="btn btn-primary"
             @click="closeModal"
           >

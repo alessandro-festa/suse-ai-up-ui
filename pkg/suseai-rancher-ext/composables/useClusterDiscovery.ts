@@ -188,12 +188,46 @@ export function useClusterDiscovery() {
   });
 
   /**
-   * Get accessible clusters (placeholder - should be implemented based on auth)
+   * Get accessible clusters from Rancher management API
    */
-  const getAccessibleClusters = (): RancherCluster[] => {
-    // This should be implemented to return clusters the user has access to
-    // For now, return empty array - will be populated by the wizard
-    return [];
+  const getAccessibleClusters = async (store?: any): Promise<RancherCluster[]> => {
+    try {
+      console.log('🔍 [ClusterDiscovery] Fetching accessible clusters...');
+
+      // Use the store if provided, otherwise try to access it from Vue context
+      const storeInstance = store || (window as any).__VUE__?.config?.globalProperties?.$store;
+
+      if (!storeInstance) {
+        console.warn('⚠️ [ClusterDiscovery] No store available for cluster discovery');
+        return [];
+      }
+
+      // Fetch clusters from Rancher management API
+      const response = await storeInstance.dispatch('rancher/request', {
+        url: '/v3/clusters',
+        method: 'GET'
+      });
+
+      const clusters = response?.data || [];
+      console.log(`✅ [ClusterDiscovery] Found ${clusters.length} accessible clusters`);
+
+      // Filter for clusters that are connected/active
+      const accessibleClusters = clusters.filter((cluster: any) =>
+        cluster.state === 'active' || cluster.status?.conditions?.some((c: any) => c.type === 'Ready' && c.status === 'True')
+      );
+
+      console.log(`✅ [ClusterDiscovery] Found ${accessibleClusters.length} active/connected clusters`);
+
+      // Log cluster details for debugging
+      accessibleClusters.forEach((cluster: any, index: number) => {
+        console.log(`   Cluster ${index + 1}: ${cluster.nameDisplay || cluster.name} (${cluster.id}) - State: ${cluster.state}`);
+      });
+
+      return accessibleClusters;
+    } catch (error) {
+      console.error('❌ [ClusterDiscovery] Failed to fetch accessible clusters:', error);
+      return [];
+    }
   };
 
   return {

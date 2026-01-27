@@ -244,5 +244,6 @@ export class AdapterAPI extends BaseAPI {
 export const adapterAPI = new AdapterAPI({
   baseURL: API_BASE_URLS.MCP_GATEWAY,
   timeout: 30000,
-  retries: 3
+  retries: 3,
+  dynamicBaseURL: () => API_BASE_URLS.MCP_GATEWAY
 })

@@ -7,161 +7,22 @@
       <p>This SUSE AI Universal Proxy feature is experimental and may not be fully compatible with all providers. <a href="https://github.com/SUSE/suse-ai-up/issues" target="_blank">Report Issue</a> or <a href="https://github.com/SUSE/suse-ai-up/pulls" target="_blank">Submit PR</a> to help improve compatibility.</p>
     </div>
 
-    <!-- Configuration Completed Message -->
-    <div v-if="configurationCompleted" class="completion-message">
-      <div class="completion-banner">
-        <i class="icon icon-checkmark"></i>
-        <span>Configuration completed, you may now use the services</span>
-      </div>
-    </div>
-
-    <!-- Step 1: Proxy Discovery -->
-    <div v-if="!selectedProxy" class="step proxy-discovery">
-      <div class="step-header">
-        <h2>Discover SUSE AI Universal Proxy</h2>
-        <p>Select the SUSE AI Universal Proxy instance you want to configure.</p>
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="welcome-section">
+        <h1>Welcome to SUSE AI Universal Proxy</h1>
+        <p>Configure and manage your SUSE AI services through the Settings page.</p>
       </div>
 
-      <div class="step-content">
-        <div v-if="proxiesLoading" class="loading-section">
-          <Loading />
-          <p>Discovering SUSE AI Universal Proxy instances across all accessible clusters...</p>
-        </div>
-
-        <div v-else-if="proxiesError" class="error-section">
-          <Banner color="error">
-            <strong>Discovery Failed</strong>
-            <p>{{ proxiesError }}</p>
-            <button class="btn btn-sm bg-primary mt-10" @click="retryProxyDiscovery">Retry Discovery</button>
-          </Banner>
-        </div>
-
-        <div v-else-if="discoveredProxies.length === 0" class="no-proxies-section">
-          <Banner color="warning">
-            <strong>No SUSE AI Universal Proxy Found</strong>
-            <p>No SUSE AI Universal Proxy instances were found in any accessible cluster. Please ensure the proxy is installed and running.</p>
-          </Banner>
-        </div>
-
-        <div v-else class="proxy-selection">
-          <div class="proxy-dropdown">
-            <label for="proxy-select">Select Proxy Instance:</label>
-            <select id="proxy-select" v-model="selectedProxyIndex" @change="onProxySelected" class="form-control">
-              <option value="-1" disabled>Select a proxy instance...</option>
-              <option
-                v-for="(proxy, index) in discoveredProxies"
-                :key="`proxy-${index}`"
-                :value="index"
-              >
-                {{ getClusterName(proxy) }}
-              </option>
-            </select>
+      <div class="setup-section">
+        <div class="setup-card">
+          <div class="card-icon">
+            <i class="icon icon-settings"></i>
           </div>
-
-          <div v-if="selectedProxyIndex >= 0 && selectedProxy" class="proxy-details">
-            <h4>Selected Proxy Details</h4>
-            <div class="detail-item">
-               <strong>Pod Name:</strong> {{ (selectedProxy as any)?.metadata?.name }}
-            </div>
-            <div class="detail-item">
-               <strong>Namespace:</strong> {{ (selectedProxy as any)?.metadata?.namespace }}
-            </div>
-            <div class="detail-item">
-              <strong>Cluster:</strong> {{ getClusterName(selectedProxy) }}
-            </div>
-            <div class="detail-item">
-               <strong>IP:</strong> {{ (selectedProxy as any)?.primaryIP || (selectedProxy as any)?.status?.podIP || 'Unknown' }}
-            </div>
-            <div class="actions">
-              <button class="btn-primary" @click="confirmProxySelection">Configure This Proxy</button>
-            </div>
+          <div class="card-content">
+            <h3>Configuration Required</h3>
+            <p>To get started with SUSE AI services, you need to configure the Universal Proxy first. Open the Global Settings menu and follow the configuration wizard.</p>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 2: Proxy Info & Service Selection -->
-    <div v-else-if="selectedProxy && !configurationCompleted" class="step proxy-info">
-      <div class="step-header">
-        <h2>{{ proxySaved ? 'Select Services' : 'Configure SUSE AI Universal Proxy' }}</h2>
-        <p>{{ proxySaved ? 'Choose which SUSE AI services to enable:' : 'Review the proxy information and configure services.' }}</p>
-        <button class="btn-secondary back-btn" @click="resetProxySelection">← Change Proxy</button>
-      </div>
-
-      <div class="step-content">
-        <!-- Proxy Info Card - Collapsed when services are being configured -->
-        <div v-if="!proxySaved" class="proxy-info-section">
-          <PodInfoCard :pod="selectedProxy" @save="onProxySave" />
-        </div>
-
-        <!-- Service Selection - Expanded when proxy is saved -->
-        <div v-if="proxySaved" class="service-selection">
-          <div class="service-selection-header">
-            <h3>Select Services</h3>
-            <p>Choose which SUSE AI services to enable:</p>
-          </div>
-
-          <ServiceSelector
-            v-model="selectedServices"
-            :services="availableServices"
-          />
-
-        <div class="actions">
-          <button
-            class="btn-primary"
-            :disabled="selectedServices.length === 0"
-            @click="onServiceSelectionComplete"
-          >
-            Continue
-          </button>
-        </div>
-      </div>
-    </div>
-    </div>
-
-    <!-- Configuration Review -->
-    <div v-else-if="configurationCompleted" class="step configuration-review">
-      <div class="step-header">
-        <h2>Configuration Summary</h2>
-        <p>Review your SUSE AI Universal Proxy configuration.</p>
-      </div>
-
-      <div class="step-content">
-        <div class="review-section">
-          <h3>Selected Proxy</h3>
-          <div class="review-item">
-            <div class="review-icon">
-              <i class="icon icon-server"></i>
-            </div>
-            <div class="review-info">
-              <strong>{{ selectedProxy?.metadata?.namespace }}/{{ selectedProxy?.metadata?.name }}</strong>
-              <p>Cluster: {{ getClusterName(selectedProxy) }}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="review-section">
-          <h3>Enabled Services</h3>
-          <div class="services-summary">
-            <div
-              v-for="serviceId in selectedServices"
-              :key="serviceId"
-              class="service-summary-item"
-            >
-              <div class="service-icon">
-                <i :class="getServiceIconClass(serviceId)"></i>
-              </div>
-              <div class="service-info">
-                <strong>{{ getServiceName(serviceId) }}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button class="btn-secondary" @click="editConfiguration">
-            Edit Configuration
-          </button>
         </div>
       </div>
     </div>
@@ -169,471 +30,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, type Ref } from 'vue'
-import { useServiceDiscovery } from '../composables/useServiceDiscovery'
-import { useStore } from 'vuex'
-import { SUSEAIProxyConfig } from '../config/suseai'
-import PodCard from './components/PodCard.vue'
-import PodInfoCard from './components/PodInfoCard.vue'
-import ServiceSelector from './components/ServiceSelector.vue'
-import { Banner } from '@rancher/shell/rancher-components/Banner'
-import Loading from '@shell/components/Loading'
-import { getClusters } from '../services/rancher-apps'
-
-interface DetectedPod {
-  metadata: {
-    name: string;
-    namespace: string;
-    annotations?: Record<string, string>;
-  };
-  spec: {
-    containers: Array<{
-      ports?: Array<{
-        containerPort: number;
-        protocol: string;
-      }>;
-    }>;
-  };
-  status: {
-    podIP?: string;
-    hostIP?: string;
-    phase: string;
-    startTime?: string;
-  };
-  primaryIP?: string;
-  clusterIP?: string;
-  externalIPs?: string[];
-}
+import { defineComponent } from 'vue'
 
 export default defineComponent({
-  name: 'Home',
-  components: {
-    PodCard,
-    PodInfoCard,
-    ServiceSelector,
-    Banner,
-    Loading
-  },
-
-  setup() {
-    const { discoverPodObjects } = useServiceDiscovery()
-    const store = useStore()
-
-    // State management
-    const selectedProxy = ref<DetectedPod | null>(null)
-    const selectedProxyIndex = ref(-1)
-    const discoveredProxies: Ref<DetectedPod[]> = ref([])
-    const proxiesLoading = ref(true)
-    const proxiesError = ref('')
-    const proxySaved = ref(false)
-    const selectedServices = ref<string[]>([])
-    const configurationCompleted = ref(false)
-    const serviceUrl = ref('')
-
-    // Legacy cluster/pod state for backward compatibility
-    const selectedCluster = ref('')
-    const selectedPod = ref<DetectedPod | null>(null)
-    const discoveredPods = ref<DetectedPod[]>([])
-    const podsLoading = ref(false)
-    const podsError = ref('')
-    const podSaved = ref(false)
-
-    // Cluster discovery state
-    const clustersLoading = ref(true)
-    const clustersError = ref('')
-    const availableClusters = ref<any[]>([])
-    const allClusters = ref<any[]>([])
-    const clustersCache = ref<any[]>([])
-    const cacheExpiry = ref(0)
-    const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-
-    // Available services
-    const availableServices = [
-      {
-        id: 'mcp-gateway',
-        name: 'MCP Gateway',
-        description: 'Model Context Protocol gateway for AI interactions and server management.',
-        iconClass: 'icon icon-server'
-      },
-      {
-        id: 'mcp-registry',
-        name: 'MCP Registry',
-        description: 'Registry for managing MCP connections and installations.',
-        iconClass: 'icon icon-list'
-      },
-      {
-        id: 'virtual-mcp',
-        name: 'Virtual MCP',
-        description: 'Virtual Model Context Protocol servers for enhanced AI interactions.',
-        iconClass: 'icon icon-server'
-      },
-      {
-        id: 'smart-agents',
-        name: 'SmartAgents',
-        description: 'Intelligent agents for automated tasks and workflows.',
-        iconClass: 'icon icon-user'
-      }
-    ]
-
-    // Get selected services from store
-    const storedSelectedServices = computed(() => store.getters.selectedServices)
-
-    // Get proxy configuration from store
-    const proxyConfig = computed<SUSEAIProxyConfig>(() => store.getters['suseai/proxyConfig'] || {})
-
-    // Discover clusters with SUSE AI pods
-    const discoverClustersWithPods = async () => {
-      clustersLoading.value = true
-      proxiesLoading.value = true
-      clustersError.value = ''
-      proxiesError.value = ''
-
-      try {
-        // Check cache first
-        const now = Date.now()
-        if (clustersCache.value.length > 0 && now < cacheExpiry.value) {
-          console.log('Using cached cluster data')
-          allClusters.value = clustersCache.value
-        } else {
-          console.log('Discovering all clusters...')
-          const clusters = await getClusters(store)
-          allClusters.value = clusters || []
-          clustersCache.value = allClusters.value
-          cacheExpiry.value = now + CACHE_DURATION
-        }
-
-        console.log(`Found ${allClusters.value.length} clusters, checking for SUSE AI pods...`)
-
-        // Check clusters with concurrency limit for better performance and API stability
-        const CONCURRENT_LIMIT = 3
-        const clustersWithPods: any[] = []
-
-        for (let i = 0; i < allClusters.value.length; i += CONCURRENT_LIMIT) {
-          const batch = allClusters.value.slice(i, i + CONCURRENT_LIMIT)
-          const batchPromises = batch.map(async (cluster) => {
-            try {
-              console.log(`Checking cluster: ${cluster.name || cluster.id}`)
-              const pods = await discoverPodObjects(store, cluster.id, proxyConfig.value.allowedNamespaces)
-
-              if (pods.length > 0) {
-                console.log(`✅ Found ${pods.length} pods in cluster ${cluster.name || cluster.id}`)
-                return {
-                  ...cluster,
-                  pods,
-                  podsCount: pods.length
-                }
-              } else {
-                console.log(`⚠️ No SUSE AI pods found in cluster ${cluster.name || cluster.id}`)
-                return null
-              }
-            } catch (error: any) {
-              console.warn(`Failed to check cluster ${cluster.name || cluster.id}:`, error)
-              // If this is the currently selected cluster, set an error
-              if (selectedCluster.value === cluster.id) {
-                podsError.value = `Failed to discover pods in cluster ${cluster.name || cluster.id}: ${error?.message || 'Unknown error'}`
-              }
-              return null
-            }
-          })
-
-          const batchResults = await Promise.allSettled(batchPromises)
-          batchResults.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value) {
-              clustersWithPods.push(result.value)
-            } else if (result.status === 'rejected') {
-              console.error('Cluster check failed:', result.reason)
-            }
-          })
-        }
-
-        availableClusters.value = clustersWithPods
-        console.log(`✅ Discovery complete: ${availableClusters.value.length} clusters with SUSE AI pods`)
-
-        // Collect all discovered proxies across all clusters
-        const allProxies: DetectedPod[] = []
-        clustersWithPods.forEach(cluster => {
-          if (cluster.pods) {
-            allProxies.push(...cluster.pods)
-          }
-        })
-        discoveredProxies.value = allProxies
-        console.log(`✅ Collected ${allProxies.length} proxies across all clusters`)
-
-      } catch (error: any) {
-        console.error('Cluster discovery failed:', error)
-        clustersError.value = error.message || 'Failed to discover clusters'
-        availableClusters.value = []
-      } finally {
-        clustersLoading.value = false
-        proxiesLoading.value = false
-        console.log('✅ Discovery process complete, proxiesLoading set to false')
-      }
-    }
-
-    // Event handlers
-    const onClusterSelected = (clusterId: string) => {
-      if (!clusterId) return
-
-      const cluster = availableClusters.value.find(c => c.id === clusterId)
-      if (!cluster) {
-        podsError.value = 'Selected cluster not found'
-        return
-      }
-
-      if (!cluster.pods || cluster.pods.length === 0) {
-        podsError.value = 'No SUSE AI Universal Proxy pods found in the selected cluster'
-        return
-      }
-
-      selectedCluster.value = clusterId
-      discoveredPods.value = cluster.pods
-      podsError.value = '' // Clear any previous errors
-      // Auto-select the first (and only) pod
-      selectedPod.value = cluster.pods[0]
-      console.log(`Selected cluster ${clusterId} and auto-selected pod`)
-    }
-
-    const onProxySelected = () => {
-      if (selectedProxyIndex.value >= 0) {
-        selectedProxy.value = discoveredProxies.value[selectedProxyIndex.value]
-        console.log('Selected proxy:', selectedProxy.value)
-      }
-    }
-
-    const confirmProxySelection = () => {
-      if (selectedProxy.value) {
-        proxySaved.value = true
-        // Initialize selected services from store or empty array
-        selectedServices.value = [...(storedSelectedServices.value || [])]
-        console.log('Proxy confirmed, showing service selection')
-      }
-    }
-
-    const getClusterName = (proxy: DetectedPod | null): string => {
-      if (!proxy) return 'Unknown'
-      // Find the cluster that contains this proxy
-      const cluster = availableClusters.value.find(c => c.pods?.some((p: DetectedPod) => p.metadata?.name === proxy.metadata?.name && p.metadata?.namespace === proxy.metadata?.namespace))
-      return cluster ? cluster.name : 'Unknown'
-    }
-
-    const getClusterId = (proxy: DetectedPod | null): string => {
-      if (!proxy) return ''
-      // Find the cluster that contains this proxy
-      const cluster = availableClusters.value.find(c => c.pods?.some((p: DetectedPod) => p.metadata?.name === proxy.metadata?.name && p.metadata?.namespace === proxy.metadata?.namespace))
-      return cluster ? cluster.id : ''
-    }
-
-    const onPodSelected = (pod: DetectedPod) => {
-      selectedPod.value = pod
-      console.log('Selected pod:', pod)
-    }
-
-    const retryClusterDiscovery = async () => {
-      try {
-        await discoverClustersWithPods()
-      } catch (error: any) {
-        console.error('Retry cluster discovery failed:', error)
-        // Error is already handled in discoverClustersWithPods
-      }
-    }
-
-    const onProxySave = () => {
-      proxySaved.value = true
-      // Initialize selected services from store or empty array
-      selectedServices.value = [...(storedSelectedServices.value || [])]
-      console.log('Proxy saved, showing service selection')
-    }
-
-    const onPodSave = () => {
-      podSaved.value = true
-      // Initialize selected services from store or empty array
-      selectedServices.value = [...(storedSelectedServices.value || [])]
-      console.log('Pod saved, showing service selection')
-    }
-
-    const onServiceSelectionComplete = () => {
-      if (selectedServices.value.length === 0) {
-        console.warn('No services selected')
-        return
-      }
-
-      // Generate service URL from proxy info (always use external IP if available)
-      const externalIP = selectedProxy.value!.externalIPs?.[0]
-      const primaryIP = selectedProxy.value!.primaryIP || selectedProxy.value!.clusterIP
-      const ip = externalIP || primaryIP
-      serviceUrl.value = `http://${ip}:8911`
-
-      // Persist service URL for authentication
-      localStorage.setItem('suseai-service-url', serviceUrl.value)
-
-      // Proceed with configuration (authentication handled in Settings)
-      handleLoginSuccess()
-    }
-
-    const handleLoginSuccess = async () => {
-      try {
-        // Store configuration in Vuex
-        await store.dispatch('suseai/setSelectedServices', selectedServices.value)
-        await store.dispatch('suseai/setSelectedCluster', selectedCluster.value)
-        await store.dispatch('suseai/setSelectedPod', selectedPod.value)
-        await store.dispatch('suseai/setProxyInstalled', true)
-
-        await store.dispatch('suseai/setServiceUrls', [serviceUrl.value])
-
-        // Persist service URL for authentication
-        localStorage.setItem('suseai-service-url', serviceUrl.value)
-
-        // Save selected proxy to proxy config
-        const proxyConfigData = {
-          selectedServer: {
-            clusterId: getClusterId(selectedProxy.value),
-            namespace: selectedProxy.value!.metadata?.namespace,
-            podName: selectedProxy.value!.metadata?.name,
-            serviceUrl: serviceUrl.value
-          }
-        }
-        await store.dispatch('suseai/setProxyConfig', proxyConfigData)
-
-        console.log('Configuration saved:', {
-          proxy: selectedProxy.value,
-          services: selectedServices.value,
-          serviceUrl: serviceUrl.value,
-          proxyConfig: proxyConfigData
-        })
-
-        // Show completion page
-        configurationCompleted.value = true
-      } catch (error: any) {
-        console.error('Failed to save configuration:', error)
-        // Show error state - could add an error banner here
-        // For now, we'll just log the error since the UI doesn't have a specific error state for this
-      }
-    }
-
-    const editConfiguration = () => {
-      // Reset all state to restart the wizard
-      configurationCompleted.value = false
-      resetProxySelection()
-    }
-
-    const getSelectedClusterName = (): string => {
-      const cluster = availableClusters.value.find(c => c.id === selectedCluster.value)
-      return cluster ? cluster.name : selectedCluster.value
-    }
-
-    const getServiceName = (serviceId: string): string => {
-      const service = availableServices.find(s => s.id === serviceId)
-      return service ? service.name : serviceId
-    }
-
-    const getServiceIconClass = (serviceId: string): string => {
-      const service = availableServices.find(s => s.id === serviceId)
-      return service ? service.iconClass : 'icon icon-server'
-    }
-
-    const resetClusterSelection = () => {
-      selectedCluster.value = ''
-      selectedPod.value = null
-      discoveredPods.value = []
-      podsError.value = ''
-      podSaved.value = false
-      selectedServices.value = []
-      configurationCompleted.value = false
-    }
-
-    const resetProxySelection = () => {
-      selectedProxy.value = null
-      selectedProxyIndex.value = -1
-      proxySaved.value = false
-      selectedServices.value = []
-      configurationCompleted.value = false
-    }
-
-    const resetPodSelection = () => {
-      selectedPod.value = null
-      podSaved.value = false
-      selectedServices.value = []
-    }
-
-    const retryProxyDiscovery = async () => {
-      try {
-        proxiesError.value = ''
-        await discoverClustersWithPods()
-      } catch (error: any) {
-        console.error('Proxy discovery retry failed:', error)
-        proxiesError.value = `Failed to discover proxies: ${error?.message || 'Unknown error'}`
-      }
-    }
-
-    const retryPodDiscovery = async () => {
-      try {
-        podsError.value = ''
-        const cluster = availableClusters.value.find(c => c.id === selectedCluster.value)
-        if (cluster) {
-          const pods = await discoverPodObjects(store, selectedCluster.value, proxyConfig.value.allowedNamespaces)
-          if (pods.length > 0) {
-            cluster.pods = pods
-            cluster.podsCount = pods.length
-            discoveredPods.value = pods
-            selectedPod.value = pods[0]
-            podsError.value = ''
-          } else {
-            podsError.value = 'No SUSE AI Universal Proxy pods found in the selected cluster'
-          }
-        } else {
-          podsError.value = 'Selected cluster not found'
-        }
-      } catch (error: any) {
-        console.error('Pod discovery retry failed:', error)
-        podsError.value = `Failed to discover pods: ${error?.message || 'Unknown error'}`
-      }
-    }
-
-    // Initialize discovery on mount
-    discoverClustersWithPods()
-
-    return {
-      selectedCluster,
-      selectedPod,
-      selectedProxy,
-      selectedProxyIndex,
-      discoveredPods,
-      discoveredProxies,
-      podsLoading,
-      proxiesLoading,
-      podsError,
-      proxiesError,
-      podSaved,
-      proxySaved,
-      selectedServices,
-      availableServices,
-      configurationCompleted,
-      serviceUrl,
-      clustersLoading,
-      clustersError,
-      availableClusters,
-      onClusterSelected,
-      onProxySelected,
-      confirmProxySelection,
-      onPodSelected,
-      onProxySave,
-      onPodSave,
-      onServiceSelectionComplete,
-      handleLoginSuccess,
-      resetClusterSelection,
-      resetProxySelection,
-      resetPodSelection,
-      retryPodDiscovery,
-      retryProxyDiscovery,
-      retryClusterDiscovery,
-      editConfiguration,
-      getSelectedClusterName,
-      getClusterName,
-      getClusterId,
-      getServiceName,
-      getServiceIconClass
-    }
-  }
+  name: 'Home'
 })
 </script>
 
@@ -680,6 +80,191 @@ export default defineComponent({
 
 .experimental-banner a:hover {
   color: #b02a5b;
+}
+
+/* Main Content */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.welcome-section {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.welcome-section h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text, #333);
+  margin: 0 0 16px 0;
+}
+
+.welcome-section p {
+  font-size: 16px;
+  color: var(--text-muted, #666);
+  margin: 0;
+}
+
+/* Setup Section */
+.setup-section {
+  display: flex;
+  justify-content: center;
+}
+
+.setup-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #dee2e6);
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-icon {
+  font-size: 48px;
+  color: var(--primary, #007bff);
+  margin-bottom: 16px;
+}
+
+.setup-card h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text, #333);
+  margin: 0 0 12px 0;
+}
+
+.setup-card p {
+  font-size: 15px;
+  color: var(--text-muted, #666);
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.setup-card .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.setup-card .btn-primary {
+  background: var(--primary, #007bff);
+  color: white;
+  border: 1px solid var(--primary, #007bff);
+}
+
+.setup-card .btn-primary:hover {
+  background: var(--primary-hover, #0056b3);
+  border-color: var(--primary-hover, #0056b3);
+}
+
+/* Status Section */
+.status-section {
+  display: flex;
+  justify-content: center;
+}
+
+.status-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #dee2e6);
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status-card.success {
+  border-color: var(--success-border, #d4edda);
+  background: var(--success-bg, #f8fff9);
+}
+
+.status-card.warning {
+  border-color: var(--warning-border, #ffeaa7);
+  background: var(--warning-bg, #fffef8);
+}
+
+.status-icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.status-card.success .status-icon {
+  color: var(--success, #28a745);
+}
+
+.status-card.warning .status-icon {
+  color: var(--warning, #856404);
+}
+
+.status-content h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text, #333);
+  margin: 0 0 12px 0;
+}
+
+.status-content p {
+  font-size: 15px;
+  color: var(--text-muted, #666);
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.status-details {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+}
+
+.detail-item {
+  text-align: center;
+}
+
+.detail-item strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text, #333);
+}
+
+.detail-item span {
+  font-size: 14px;
+  color: var(--text-muted, #666);
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .home-container {
+    padding: 16px;
+  }
+
+  .welcome-section {
+    padding: 32px 16px;
+  }
+
+  .welcome-section h1 {
+    font-size: 24px;
+  }
+
+  .setup-card, .status-card {
+    padding: 24px;
+  }
+
+  .status-details {
+    flex-direction: column;
+    gap: 16px;
+  }
 }
 
 /* Step Styles */

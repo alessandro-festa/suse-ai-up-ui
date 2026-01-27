@@ -100,7 +100,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
+import { defineComponent, ref, computed, watch, onMounted } from 'vue';
 import ScanActions from './ScanActions.vue';
 import MetricsGrid from './MetricsGrid.vue';
 import AdaptersTable from './AdaptersTable.vue';
@@ -166,7 +166,12 @@ export default defineComponent({
     })
 
     // Health monitoring
-    const { proxyHealth, registryHealth, discoveryHealth } = useHealthMonitoring();
+    const { proxyHealth, registryHealth, discoveryHealth, initialize: initHealth } = useHealthMonitoring();
+
+    // Initialize health monitoring on mount
+    onMounted(() => {
+      initHealth();
+    });
 
     // Adapters management
     const { deleteAdapter } = useAdapters();
