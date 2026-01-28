@@ -34,6 +34,9 @@
                  <button class="btn btn-sm role-secondary" @click="handleViewDetails(adapter)" title="View Details">
                    <i class="icon icon-info"></i>
                  </button>
+                 <button class="btn btn-sm role-secondary" @click="handleManageAccess(adapter)" title="Manage Access">
+                   <i class="icon icon-user"></i>
+                 </button>
                  <button class="btn btn-sm role-secondary" @click="handleDeleteAdapter(adapter)" title="Delete">
                    <i class="icon icon-trash"></i>
                  </button>
@@ -49,6 +52,13 @@
        :adapter-data="selectedAdapter"
        @close="closeAdapterDetailsModal"
      />
+
+     <!-- Assign Group Modal -->
+     <AssignGroupModal
+       :show="showAssignGroupModal"
+       :adapter="selectedAdapter"
+       @close="closeAssignGroupModal"
+     />
    </div>
 </template>
 
@@ -56,11 +66,13 @@
 import { defineComponent, ref } from 'vue';
 import { adapterAPI, type Adapter } from '../../services/adapter-api';
 import AdapterDetailsModal from '../shared/AdapterDetailsModal.vue';
+import AssignGroupModal from '../shared/AssignGroupModal.vue';
 
 export default defineComponent({
   name: 'AdaptersTable',
   components: {
-    AdapterDetailsModal
+    AdapterDetailsModal,
+    AssignGroupModal
   },
   props: {
     adapters: {
@@ -89,6 +101,7 @@ export default defineComponent({
     console.log('AdaptersTable setup - received adapters:', props.adapters?.length || 0, 'items')
 
         const showAdapterDetailsModal = ref(false);
+        const showAssignGroupModal = ref(false);
         const selectedAdapter = ref<Adapter | null>(null);
 
        const handleViewDetails = async (adapter: Adapter) => {
@@ -114,6 +127,16 @@ export default defineComponent({
           selectedAdapter.value = null;
         };
 
+        const handleManageAccess = (adapter: Adapter) => {
+          selectedAdapter.value = adapter;
+          showAssignGroupModal.value = true;
+        };
+
+        const closeAssignGroupModal = () => {
+          showAssignGroupModal.value = false;
+          selectedAdapter.value = null;
+        };
+
         const getStatusClass = (adapter: any) => {
           const status = adapter.status || 'unknown';
           return status === 'ready' ? 'status-active badge badge-success' : 'status-inactive badge badge-secondary';
@@ -135,10 +158,13 @@ export default defineComponent({
 
           return {
             showAdapterDetailsModal,
+            showAssignGroupModal,
             selectedAdapter,
             handleViewDetails,
+            handleManageAccess,
             handleDeleteAdapter,
             closeAdapterDetailsModal,
+            closeAssignGroupModal,
             getStatusClass,
             getStatusText,
             getCapabilitiesCount

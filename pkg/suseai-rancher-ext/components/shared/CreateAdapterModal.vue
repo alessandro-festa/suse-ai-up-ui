@@ -113,6 +113,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { adapterAPI } from '../../services/adapter-api';
 import { registryAPI } from '../../services/registry-api';
+import { externalGroupAPI } from '../../services/external-group-api';
 import type { AdapterData, CreateAdapterFromRegistryResponse } from '../../types/mcp-types';
 import type { MCPServer } from '../../services/registry-api';
 import type { Adapter } from '../../services/adapter-api';
@@ -398,6 +399,35 @@ const removeTool = (index: number) => {
   toolsList.value.splice(index, 1);
 };
 
+const ensureAdminAccess = async (adapterName: string) => {
+  try {
+    const adminGroupName = 'mcp-admins';
+    // 1. Check if group exists
+    const groups = await externalGroupAPI.list();
+    let adminGroup = groups.find(g => g.name === adminGroupName);
+
+    // 2. Create if missing
+    if (!adminGroup) {
+      logger.info('Creating admin group', { name: adminGroupName });
+      adminGroup = await externalGroupAPI.create({
+        id: adminGroupName,
+        name: adminGroupName,
+        description: 'Administrators with full access to all MCP adapters',
+        permissions: [] // Permissions are assigned per adapter
+      });
+    }
+
+    // 3. Assign adapter to group
+    if (adminGroup) {
+      await adapterAPI.assignGroup(adapterName, adminGroup.id, 'read');
+      logger.info('Assigned adapter to admin group', { adapter: adapterName, group: adminGroupName });
+    }
+  } catch (err) {
+    logger.error('Failed to ensure admin access', err);
+    // Don't block the UI flow, just log the error
+  }
+};
+
 const testConnection = async () => {
   if (!isValid.value) return;
 
@@ -491,6 +521,10 @@ const createAdapter = async () => {
       // For now, registry creation returns the same Adapter format
       // TODO: Implement proper registry creation API when available
       const adapterResult = result as Adapter;
+      
+      // Auto-assign admin access
+      await ensureAdminAccess(adapterResult.name);
+
       creationResponse.value = {
         adapter: adapterResult,
         mcp_endpoint: `http://localhost:8911/adapters/${adapterResult.name}`, // Placeholder endpoint
@@ -505,6 +539,10 @@ const createAdapter = async () => {
     } else {
       // Manual creation response
       const manualResult = result as Adapter;
+      
+      // Auto-assign admin access
+      await ensureAdminAccess(manualResult.name || adapterData.value.name);
+
       // Fetch token information for manual creation
       try {
         // const tokenInfo = await MCPService.getAdapterToken(manualResult.name || adapterData.value.name);

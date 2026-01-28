@@ -238,6 +238,73 @@ export class AdapterAPI extends BaseAPI {
        throw error
      }
    }
+
+   /**
+    * Assign group to adapter
+    */
+   async assignGroup(adapterId: string, groupId: string, permission: string = 'read'): Promise<void> {
+     try {
+       logger.info('Assigning group to adapter', { adapterId, groupId, permission })
+       await this.post<void>(`/api/v1/adapters/${adapterId}/groups`, {
+         groupId,
+         permission
+       })
+       logger.info('Group assigned to adapter', { adapterId, groupId })
+     } catch (error: any) {
+       // Check for 409 Conflict (Group already assigned)
+       // Check multiple properties as the error structure might vary (Axios vs custom API wrapper)
+       const isConflict = 
+         (error.response && error.response.status === 409) || 
+         error.status === 409 || 
+         error.code === 'HTTP_409';
+
+       if (isConflict) {
+         logger.info('Group already assigned to adapter (idempotent)', { adapterId, groupId })
+         return
+       }
+       logger.error('Failed to assign group to adapter', { adapterId, groupId, error })
+       throw error
+     }
+   }
+
+   /**
+    * Remove group from adapter
+    */
+   async unassignGroup(adapterId: string, groupId: string): Promise<void> {
+     try {
+       logger.info('Removing group from adapter', { adapterId, groupId })
+       await this.delete<void>(`/api/v1/adapters/${adapterId}/groups/${groupId}`)
+       logger.info('Group removed from adapter', { adapterId, groupId })
+     } catch (error) {
+       logger.error('Failed to remove group from adapter', { adapterId, groupId, error })
+       throw error
+     }
+   }
+
+   /**
+    * Get adapter groups
+    */
+   async getAdapterGroups(adapterId: string): Promise<any[]> {
+     try {
+       logger.info('Getting adapter groups', { adapterId })
+       const response = await this.get<any>(`/api/v1/adapters/${adapterId}/groups`)
+       
+       // Handle response format variations
+       let groups: any[] = []
+       if (Array.isArray(response)) {
+         groups = response
+       } else if (response && Array.isArray((response as any).groups)) {
+         groups = (response as any).groups
+       }
+
+       logger.info('Adapter groups retrieved', { adapterId, count: groups.length })
+       return groups
+     } catch (error) {
+       logger.error('Failed to get adapter groups', { adapterId, error })
+       // Return empty array instead of throwing to avoid breaking UI
+       return []
+     }
+   }
 }
 
 // Singleton instance - will update baseURL dynamically
