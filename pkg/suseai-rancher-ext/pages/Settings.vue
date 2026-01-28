@@ -68,6 +68,27 @@
          </div>
        </div>
      </div>
+
+     <!-- Modals -->
+     <UserDetailsModal
+       :show="showUserModal"
+       :user="selectedUser"
+       :can-edit-user="true"
+       :is-external="true"
+       @close="showUserModal = false"
+       @save="handleSaveUser"
+     />
+
+     <GroupDetailsModal
+       :show="showGroupModal"
+       :group="selectedGroup"
+       :all-users="users"
+       :can-edit-group="true"
+       @close="showGroupModal = false"
+       @save="handleSaveGroup"
+       @add-member="handleAddMemberToGroup"
+       @remove-member="handleRemoveMemberFromGroup"
+     />
    </div>
 </template>
 
@@ -77,20 +98,45 @@ import { useStore } from 'vuex'
 import UniversalProxyTab from '../components/settings/UniversalProxyTab.vue'
 import UsersTable from '../components/settings/UsersTable.vue'
 import GroupsTable from '../components/settings/GroupsTable.vue'
+import UserDetailsModal from '../components/settings/UserDetailsModal.vue'
+import GroupDetailsModal from '../components/settings/GroupDetailsModal.vue'
 import { useExternalUsers } from '../composables/useExternalUsers'
 import { useExternalGroups } from '../composables/useExternalGroups'
+import { updateApiBaseUrls } from '../config/api-config'
 
 export default defineComponent({
   name: 'Settings',
   components: {
     UniversalProxyTab,
     UsersTable,
-    GroupsTable
+    GroupsTable,
+    UserDetailsModal,
+    GroupDetailsModal
   },
   setup() {
     const store = useStore()
     const activeTab = ref('proxy')
     const wizardCompleted = computed(() => store.getters['suseai/wizardCompleted'])
+
+    // Initialize API URLs from store to ensure correct proxy connection
+    const serviceUrls = computed(() => store.state.suseai?.settings?.serviceUrls || [])
+    
+    // Watch for service URL changes (e.g. after wizard completion)
+    watch(serviceUrls, (newUrls) => {
+      if (newUrls && newUrls.length > 0) {
+        console.log('Settings page detected Service URL update:', newUrls[0])
+        updateApiBaseUrls(newUrls[0])
+      }
+    }, { immediate: true })
+
+    // Modal State
+    const showUserModal = ref(false)
+    const selectedUser = ref<any>(null)
+    const isUserEditing = ref(false)
+    
+    const showGroupModal = ref(false)
+    const selectedGroup = ref<any>(null)
+    const isGroupEditing = ref(false)
 
     // User management composables
     const { 
@@ -98,7 +144,10 @@ export default defineComponent({
       loading: usersLoading, 
       error: usersError, 
       loadUsers,
-      deleteUser
+      createUser,
+      updateUser,
+      deleteUser,
+      getUser
     } = useExternalUsers()
 
     const { 
@@ -106,7 +155,12 @@ export default defineComponent({
       loading: groupsLoading, 
       error: groupsError, 
       loadGroups,
-      deleteGroup
+      createGroup,
+      updateGroup,
+      deleteGroup,
+      getGroup,
+      addUserToGroup,
+      removeUserFromGroup
     } = useExternalGroups()
 
     // Handle tab switching and data loading
@@ -121,20 +175,181 @@ export default defineComponent({
     const handleRetryUsers = () => loadUsers()
     const handleRetryGroups = () => loadGroups()
 
-    // Mock handlers for actions that aren't fully implemented yet
-    const handleViewUser = (id: string) => console.log('View user:', id)
-    const handleEditUser = (id: string) => console.log('Edit user:', id)
-    const handleAddUser = () => console.log('Add user clicked')
-    const handleDeleteUser = async (id: string) => {
-      if (confirm('Are you sure you want to delete this user?')) {
+    // User Actions
+    const handleViewUser = async (arg: string | any) => {
+      const id = typeof arg === 'string' ? arg : arg?.id
+      console.log('View user:', id)
+      if (!id) return
+
+      try {
+        const user = await getUser(id)
+        if (user) {
+          selectedUser.value = user
+          isUserEditing.value = false
+          showUserModal.value = true
+        }
+      } catch (e) {
+        console.error('Failed to get user details:', e)
+      }
+    }
+
+    const handleEditUser = async (arg: string | any) => {
+      const id = typeof arg === 'string' ? arg : arg?.id
+      console.log('Edit user:', id)
+      if (!id) return
+
+      try {
+        const user = await getUser(id)
+        if (user) {
+          selectedUser.value = user
+          isUserEditing.value = true
+          showUserModal.value = true
+        }
+      } catch (e) {
+        console.error('Failed to get user details:', e)
+      }
+    }
+
+    const handleAddUser = () => {
+      console.log('Add user clicked')
+      selectedUser.value = null
+      isUserEditing.value = true
+      showUserModal.value = true
+    }
+
+    const handleSaveUser = async (userData: any) => {
+      console.log('Saving user:', userData)
+      try {
+        if (selectedUser.value?.id) {
+          // Update
+          // Handle password change if present (not supported by API yet but prepared)
+          if (userData.password) {
+             console.log('Password change requested for user:', selectedUser.value.id)
+             // TODO: Call API to change password when supported
+          }
+          
+          await updateUser(selectedUser.value.id, userData)
+        } else {
+          // Create
+          await createUser(userData)
+        }
+        
+        // Refresh list and close modal
+        await loadUsers()
+        showUserModal.value = false
+      } catch (e) {
+        console.error('Failed to save user:', e)
+        // Ideally show error notification
+      }
+    }
+
+    const handleDeleteUser = async (arg: string | any) => {
+      const id = typeof arg === 'string' ? arg : arg?.id
+      if (id && confirm('Are you sure you want to delete this user?')) {
         await deleteUser(id)
       }
     }
 
-    const handleViewGroup = (id: string) => console.log('View group:', id)
-    const handleEditGroup = (group: any) => console.log('Edit group:', group)
-    const handleAddGroup = () => console.log('Add group clicked')
-    const handleManageMembers = (group: any) => console.log('Manage members:', group)
+    // Group Actions
+    const handleViewGroup = async (arg: string | any) => {
+      const id = typeof arg === 'string' ? arg : arg?.id
+      console.log('View group:', id)
+      if (!id) return
+
+      try {
+        const group = await getGroup(id)
+        if (group) {
+          selectedGroup.value = group
+          isGroupEditing.value = false
+          showGroupModal.value = true
+        }
+      } catch (e) {
+        console.error('Failed to get group details:', e)
+      }
+    }
+
+    const handleEditGroup = async (arg: string | any) => {
+      const id = typeof arg === 'string' ? arg : arg?.id
+      console.log('Edit group:', id)
+      
+      // If we have the full object, use it initially to show modal faster
+      if (typeof arg !== 'string' && arg?.id) {
+        selectedGroup.value = arg
+      }
+      
+      // Then fetch fresh details if we have an ID
+      if (id) {
+        const fullGroup = await getGroup(id)
+        if (fullGroup) {
+          selectedGroup.value = fullGroup
+        }
+      }
+      
+      if (selectedGroup.value) {
+        isGroupEditing.value = true
+        showGroupModal.value = true
+      }
+    }
+
+    const handleAddGroup = () => {
+      console.log('Add group clicked')
+      selectedGroup.value = null
+      isGroupEditing.value = true
+      showGroupModal.value = true
+    }
+
+    const handleSaveGroup = async (groupData: any) => {
+      console.log('Saving group:', groupData)
+      try {
+        if (selectedGroup.value?.id) {
+          // Update
+          await updateGroup(selectedGroup.value.id, groupData)
+        } else {
+          // Create
+          await createGroup(groupData)
+        }
+        
+        // Refresh list and close modal
+        await loadGroups()
+        showGroupModal.value = false
+      } catch (e) {
+        console.error('Failed to save group:', e)
+      }
+    }
+
+    const handleManageMembers = (group: any) => {
+      console.log('Manage members:', group)
+      handleEditGroup(group) // Members managed in edit modal
+    }
+
+    const handleAddMemberToGroup = async (groupId: string, userId: string) => {
+      try {
+        await addUserToGroup(groupId, userId)
+        // Refresh group data
+        const updatedGroup = await getGroup(groupId)
+        if (updatedGroup) {
+          selectedGroup.value = updatedGroup
+        }
+      } catch (e) {
+        console.error('Failed to add member:', e)
+      }
+    }
+
+    const handleRemoveMemberFromGroup = async (groupId: string, userId: string) => {
+      if (confirm('Are you sure you want to remove this user from the group?')) {
+        try {
+          await removeUserFromGroup(groupId, userId)
+          // Refresh group data
+          const updatedGroup = await getGroup(groupId)
+          if (updatedGroup) {
+            selectedGroup.value = updatedGroup
+          }
+        } catch (e) {
+          console.error('Failed to remove member:', e)
+        }
+      }
+    }
+
     const handleDeleteGroup = async (id: string) => {
       if (confirm('Are you sure you want to delete this group?')) {
         await deleteGroup(id)
@@ -150,16 +365,29 @@ export default defineComponent({
       groups,
       groupsLoading,
       groupsError,
+      
+      // Modal State
+      showUserModal,
+      selectedUser,
+      isUserEditing,
+      showGroupModal,
+      selectedGroup,
+      isGroupEditing,
+
       handleRetryUsers,
       handleRetryGroups,
       handleViewUser,
       handleEditUser,
       handleAddUser,
+      handleSaveUser,
       handleDeleteUser,
       handleViewGroup,
       handleEditGroup,
       handleAddGroup,
+      handleSaveGroup,
       handleManageMembers,
+      handleAddMemberToGroup,
+      handleRemoveMemberFromGroup,
       handleDeleteGroup
     }
   }

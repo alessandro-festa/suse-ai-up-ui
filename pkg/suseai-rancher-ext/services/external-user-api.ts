@@ -108,6 +108,7 @@ export class ExternalUserAPI extends BaseAPI {
 // Singleton instance
 export const externalUserAPI = new ExternalUserAPI({
   baseURL: API_BASE_URLS.MCP_GATEWAY,
+  dynamicBaseURL: () => API_BASE_URLS.MCP_GATEWAY,
   timeout: 30000,
   retries: 3
 })

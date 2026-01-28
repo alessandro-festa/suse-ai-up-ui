@@ -1,5 +1,7 @@
 import type { IPlugin } from '@shell/core/types';
 import suseaiStore from './store/suseai-common';
+import { updateApiBaseUrls } from './config/api-config';
+import { logger } from './utils/logger';
 import {
   PRODUCT,
   BLANK_CLUSTER,
@@ -17,6 +19,18 @@ export function init($plugin: IPlugin, store: RancherStore) {
 
   // Register store modules following standard patterns
   store.registerModule?.(PRODUCT, suseaiStore);
+
+  // Initialize API config from stored state
+  try {
+    const serviceUrls = (store as any).getters[`${PRODUCT}/serviceUrls`];
+    if (serviceUrls && serviceUrls.length > 0) {
+      const savedUrl = serviceUrls[0];
+      logger.info('Restoring saved SUSE AI Proxy URL:', savedUrl);
+      updateApiBaseUrls(savedUrl);
+    }
+  } catch (err) {
+    logger.warn('Failed to restore SUSE AI Proxy URL from store:', err);
+  }
 
   // Configure product following standard patterns
 

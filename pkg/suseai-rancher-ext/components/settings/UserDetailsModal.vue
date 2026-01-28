@@ -52,14 +52,7 @@
              />
            </div>
 
-           <div v-if="props.isExternal" class="form-group">
-             <label>Groups</label>
-             <select multiple v-model="selectedGroups" class="form-input">
-               <option v-for="group in availableGroups" :key="group.id" :value="group.id">
-                 {{ group.name }}
-               </option>
-             </select>
-           </div>
+
 
           <div v-if="!props.isExternal" class="form-group">
             <label for="displayName">Display Name</label>
@@ -82,26 +75,66 @@
             ></textarea>
           </div>
 
-          <div v-if="!props.isExternal" class="form-group">
-            <label class="checkbox-label">
-              <input
-                v-model="formEnabled"
-                type="checkbox"
-                class="form-checkbox"
-              />
-              <span>Account Enabled</span>
-            </label>
-          </div>
-        </form>
+           <div v-if="!props.isExternal" class="form-group">
+             <label class="checkbox-label">
+               <input
+                 v-model="formEnabled"
+                 type="checkbox"
+                 class="form-checkbox"
+               />
+               <span>Account Enabled</span>
+             </label>
+           </div>
 
-        <div v-else class="user-details">
+            <!-- Password Change Section -->
+            <div v-if="isEditing" class="form-group password-section">
+             <label class="checkbox-label">
+               <input
+                 v-model="changePassword"
+                 type="checkbox"
+                 class="form-checkbox"
+               />
+               <span>Change Password</span>
+             </label>
+
+             <div v-if="changePassword" class="password-fields">
+               <div class="form-group">
+                 <label for="newPassword">New Password</label>
+                 <input
+                   id="newPassword"
+                   v-model="newPassword"
+                   type="password"
+                   class="form-input"
+                   :required="changePassword"
+                 />
+               </div>
+               <div class="form-group">
+                 <label for="confirmPassword">Confirm Password</label>
+                 <input
+                   id="confirmPassword"
+                   v-model="confirmPassword"
+                   type="password"
+                   class="form-input"
+                   :required="changePassword"
+                 />
+                 <span v-if="passwordError" class="error-text">{{ passwordError }}</span>
+               </div>
+             </div>
+           </div>
+         </form>
+
+         <div v-else class="user-details">
           <div class="detail-section">
             <h3>Basic Information</h3>
             <div class="detail-grid">
-              <div class="detail-item">
-                <label>{{ props.isExternal ? 'Name:' : 'Username:' }}</label>
-                <span>{{ getUserField('username') }}</span>
-              </div>
+           <div class="detail-item">
+             <label>{{ props.isExternal ? 'Username:' : 'Username:' }}</label>
+             <span>{{ getUserField('username') }}</span>
+           </div>
+           <div v-if="props.isExternal" class="detail-item">
+             <label>Name:</label>
+             <span>{{ getUserField('name') }}</span>
+           </div>
               <div v-if="props.isExternal" class="detail-item">
                 <label>Email:</label>
                 <span>{{ getUserField('email') }}</span>
@@ -253,29 +286,53 @@ export default defineComponent({
     const firstName = ref('');
     const lastName = ref('');
     const selectedGroups = ref<string[]>([]);
+    
+    // Password change fields
+    const changePassword = ref(false);
+    const newPassword = ref('');
+    const confirmPassword = ref('');
 
-    // Watch for user changes to reset form
-    watch(() => props.user, (newUser) => {
-      if (newUser) {
-        // Create a mutable copy of the user data
-        formData.value = JSON.parse(JSON.stringify(newUser));
-        // Initialize selected groups for external users
-        if (props.isExternal && (newUser as ExternalUser).groups) {
-          selectedGroups.value = [...(newUser as ExternalUser).groups];
-        }
-        isEditing.value = false;
-      } else {
-        // For creation
-        formData.value = {
-          id: '',
-          name: '',
-          email: '',
-          groups: []
-        } as any;
-        selectedGroups.value = [];
-        isEditing.value = true;
-      }
-    }, { immediate: true });
+     // Watch for user changes to reset form
+     watch(() => props.user, (newUser) => {
+       if (newUser) {
+         // Create a mutable copy of the user data
+         formData.value = JSON.parse(JSON.stringify(newUser));
+         // Initialize selected groups for external users
+         if (props.isExternal && (newUser as ExternalUser).groups) {
+           selectedGroups.value = [...(newUser as ExternalUser).groups];
+         }
+         isEditing.value = false;
+         
+         // Reset password fields
+         changePassword.value = false;
+         newPassword.value = '';
+         confirmPassword.value = '';
+         
+         // Initialize first/last name for external users
+         if (props.isExternal && (newUser as ExternalUser).name) {
+           const nameParts = (newUser as ExternalUser).name.split(' ');
+           firstName.value = nameParts[0] || '';
+           lastName.value = nameParts.slice(1).join(' ') || '';
+         }
+       } else {
+         // For creation
+         formData.value = {
+           id: '',
+           name: '',
+           email: '',
+           groups: []
+         } as any;
+         selectedGroups.value = [];
+         isEditing.value = true;
+         
+         // Reset password fields (new users might need password set, but UI logic requested is "change password option")
+         // Typically new users need a password, but following the "change password" UI request for edit modal.
+         // For creation, we might want to enforce it, but let's stick to the edit flow requested first.
+         changePassword.value = false; 
+         newPassword.value = '';
+         confirmPassword.value = '';
+       }
+     }, { immediate: true });
 
     // Fetch available groups for external users
     onMounted(async () => {
@@ -293,11 +350,23 @@ export default defineComponent({
     });
 
     // Computed properties
+    const passwordError = computed(() => {
+      if (!changePassword.value) return '';
+      if (newPassword.value !== confirmPassword.value) return 'Passwords do not match';
+      if (newPassword.value && newPassword.value.length < 8) return 'Password must be at least 8 characters';
+      return '';
+    });
+
     const isFormValid = computed(() => {
       if (!formData.value) return false;
 
       const username = formUsername.value?.trim();
       const email = formEmail.value?.trim();
+      
+      // Validate password if changing
+      if (changePassword.value) {
+        if (!newPassword.value || passwordError.value) return false;
+      }
 
       return username && email;
     });
@@ -308,20 +377,20 @@ export default defineComponent({
     });
 
     // Form field computed properties for v-model
-    const formUsername = computed({
-      get: () => {
-        if (!formData.value) return '';
-        return props.isExternal ? (formData.value as any).name : (formData.value as any).username;
-      },
-      set: (value: string) => {
-        if (!formData.value) return;
-        if (props.isExternal) {
-          (formData.value as any).name = value;
-        } else {
-          (formData.value as any).username = value;
-        }
-      }
-    });
+     const formUsername = computed({
+       get: () => {
+         if (!formData.value) return '';
+         return props.isExternal ? (formData.value as any).id : (formData.value as any).username;
+       },
+       set: (value: string) => {
+         if (!formData.value) return;
+         if (props.isExternal) {
+           (formData.value as any).id = value;
+         } else {
+           (formData.value as any).username = value;
+         }
+       }
+     });
 
     const formEmail = computed({
       get: () => {
@@ -372,28 +441,43 @@ export default defineComponent({
       isEditing.value = true;
     };
 
-    const handleSave = () => {
-      if (!isFormValid.value || !formData.value) return;
+     const handleSave = () => {
+       if (!isFormValid.value || !formData.value) return;
 
-      if (!props.user) {
-        // Creation payload
-        const name = `${firstName.value} ${lastName.value}`.trim();
-        const payload = {
-          id: formUsername.value,
-          name: name || formUsername.value,
-          email: formEmail.value,
-          groups: selectedGroups.value
-        };
-        emit('save', payload);
-      } else {
-        // Update payload - include selected groups for external users
-        const payload = {
-          ...formData.value,
-          ...(props.isExternal && { groups: selectedGroups.value })
-        };
-        emit('save', payload);
-      }
-    };
+       if (!props.user) {
+         // Creation payload
+         const name = `${firstName.value} ${lastName.value}`.trim();
+         const payload: any = {
+           id: formUsername.value,
+           name: name || formUsername.value,
+           email: formEmail.value,
+           groups: selectedGroups.value
+         };
+         
+         // Include password if set during creation (though usually required, we follow the current UI flow)
+         if (changePassword.value && newPassword.value) {
+           payload.password = newPassword.value;
+         }
+         
+         emit('save', payload);
+       } else {
+         // Update payload - include selected groups for external users
+         const payload: any = {
+           ...formData.value,
+           ...(props.isExternal && { 
+             groups: selectedGroups.value,
+             name: props.isExternal ? `${firstName.value} ${lastName.value}`.trim() || formData.value.name : undefined
+           })
+         };
+         
+         // Include password if changed
+         if (changePassword.value && newPassword.value) {
+           payload.password = newPassword.value;
+         }
+         
+         emit('save', payload);
+       }
+     };
 
     const getGroupName = (groupId: string): string => {
       const group = availableGroups.value.find(g => g.id === groupId);
@@ -428,23 +512,24 @@ export default defineComponent({
       return 'Local';
     };
 
-    // Helper methods for different user types
-    const getUserField = (field: string): any => {
-      if (!props.user) return '';
+     // Helper methods for different user types
+     const getUserField = (field: string): any => {
+       if (!props.user) return '';
 
-      if (props.isExternal) {
-        const externalUser = props.user as ExternalUser;
-        switch (field) {
-          case 'username': return externalUser.name;
-          case 'email': return externalUser.email;
-          case 'created': return externalUser.createdAt;
-          default: return '';
-        }
-      } else {
-        const rancherUser = props.user as RancherUser;
-        return rancherUser[field as keyof RancherUser] || '';
-      }
-    };
+       if (props.isExternal) {
+         const externalUser = props.user as ExternalUser;
+         switch (field) {
+           case 'username': return externalUser.id;
+           case 'name': return externalUser.name;
+           case 'email': return externalUser.email;
+           case 'created': return externalUser.createdAt;
+           default: return externalUser[field as keyof ExternalUser] || '';
+         }
+       } else {
+         const rancherUser = props.user as RancherUser;
+         return rancherUser[field as keyof RancherUser] || '';
+       }
+       };
 
     const getFormField = (field: string): any => {
       if (!formData.value) return '';
@@ -491,6 +576,10 @@ export default defineComponent({
       firstName,
       lastName,
       selectedGroups,
+      changePassword,
+      newPassword,
+      confirmPassword,
+      passwordError,
       startEditing,
       handleSave,
       handleOverlayClick,

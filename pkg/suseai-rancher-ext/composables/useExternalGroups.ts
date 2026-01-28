@@ -125,15 +125,23 @@ export function useExternalGroups() {
 
       // Update local state
       const groupIndex = groups.value.findIndex(g => g.id === groupId)
-      if (groupIndex >= 0 && !groups.value[groupIndex].members.includes(userId)) {
-        groups.value[groupIndex].members.push(userId)
+      if (groupIndex >= 0) {
+        // Initialize members array if it doesn't exist
+        if (!groups.value[groupIndex].members) {
+          groups.value[groupIndex].members = []
+        }
+        
+        if (!groups.value[groupIndex].members.includes(userId)) {
+          groups.value[groupIndex].members.push(userId)
+        }
       }
 
       logger.info('User added to external group', { groupId, userId })
       return true
     } catch (err: any) {
       error.value = err.message || 'Failed to add user to group'
-      logger.error('Failed to add user to external group', { groupId, userId, error: err })
+      const details = err.response?.data || err.message
+      logger.error('Failed to add user to external group', { groupId, userId, error: details })
       return false
     } finally {
       loading.value = false

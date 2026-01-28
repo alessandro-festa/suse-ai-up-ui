@@ -138,6 +138,7 @@ export class ExternalGroupAPI extends BaseAPI {
 // Singleton instance
 export const externalGroupAPI = new ExternalGroupAPI({
   baseURL: API_BASE_URLS.MCP_GATEWAY,
+  dynamicBaseURL: () => API_BASE_URLS.MCP_GATEWAY,
   timeout: 30000,
   retries: 3
 })
